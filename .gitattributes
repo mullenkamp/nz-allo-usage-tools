@@ -1,0 +1,2 @@
+#pattern  filter=crypt diff=crypt merge=crypt
+allotools/parameters.yml  filter=crypt diff=crypt merge=crypt

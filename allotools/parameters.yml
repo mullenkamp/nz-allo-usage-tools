@@ -1,15 +1,23 @@
-input:
-  use_type_dict: {'Dairying - Cows': 'irrigation', 'Water Supply - Rural': 'water_supply', 'Pasture Irrigation': 'irrigation', 'Crop Irrigation': 'irrigation', 'Stock Yard': 'stockwater', 'Water Supply - Town': 'water_supply', 'Quarrying': 'other', 'Recreational': 'other', 'Gravel extraction': 'other', 'Hydro-electric power generation': 'hydro_electric', 'Food Processing': 'other', 'Meat works': 'other', 'Tourism': 'other', 'Mining works': 'other', 'Industrial': 'other', 'Domestic': 'water_supply', 'Timber Processing incl Sawmills': 'other', 'Peat Harvesting/Processing': 'other', 'Milk and dairy industries': 'other', 'Gravel Wash': 'other'}
-
-remote:
-  permits:
-    waps_key: es/take-permits-waps.csv
-    sd_key: es/take-sd-ratios.csv
-    permits_key: es/take-permits.csv
-    bucket: nz-rma-permits
-    delimiter: /
-    connection_config:
-      service_name: 's3'
-      endpoint_url: https://s3.us-west-002.backblazeb2.com
-      aws_access_key_id: 00203ccd53f4ded000000001c
-      aws_secret_access_key: K0027Q/S+wmIk6sFJaGvr2+zqnxSluc
+U2FsdGVkX1+LwkX+snduCVWaKdwIpcKnqdMxdmrb2PM4jD1udWnnSWlRE6j86XWi
+YKWnLJlwF2WWPzXNTKgytOpXjujmX0QdNTpdAbZ3x7+zcwaXJwfgzqL0jlMlOQLG
+JK26icMg6UoS2LDBB4beqCjoy1PxNkafY2+/oKzV8Tq8gCdYRizSHq2r3iCAXKFN
+fhseFI4a4HweTbczvoMXxeAlC5lJ5I0xg7scmzW772gYnON5gEei5gvT0ls0/HQI
+WFAUdjuozFyCd7em2ytKMrNPAqFoMfxx3E/MKCc9nB5Yd1+EOiLhHRs0GkLcvT6H
+t6D3pLM+gYIat5Zy9I8XBovXBOoj2m/4I4FInN4htdnfCpo21icOff6DOs+MLbOp
+lT88xcmDsqTZSl4VVtLFg/3l/ydcKebJK/r8U5xw2AgoIAlg+MuGHGJpE+g7iGGO
+ZEjtvStwLp0nuVfqQ1OwvCjZSO2FKxaCVU74miDLOnCVH+DLcnJvbphtFeT4SdOR
+UBf6FaO0+ltE2ai2p460+32VEwAvYjcMA1nyk+nejfA873/kq/2l7c4YRXDIpPDB
+LFXG9LH1fBcrxZolsONh9kJOoaqzKTBU9pxX4VrXHwj1OPxnGuPX4TJo8ZWFsZ/v
+DGtRMT9GiOjNpSbMtrDh4zxCFBqwoozAOQrOVgM0TyV2aU3YI0AYH2O7FNSGYNhd
+2qi3645+iJb+dS+lKJZz6qMG58HhYJj0aRuJNsNAijkepT6ZN3GJz59b203Hh8Wl
+8bZN9eJffSWp4gRSi5BJic9U4pN5aWB1DxyvM9O0P2Wphwcdf+CCdKKZm43uVzyS
+1p9ptKbYl5yqsxnx4rSqOEVr0f3uDB1SKObeDLhw9gSpPvX6vaxrWVVJkw7gY4oK
+SpUU8rxEnviMMqcCwURQkPsYGqC3lliGj0hbj7V33kbFvLPXOi0Q79Ay3K9KIcvI
+LlXVEUmjunpMFvGfUe35xmGztwHdMgTKRV6BLFvPTjdjeEle7+D4UjdnB1wOiLDP
+a5ofxv0r3IBoZulpHBInVAthgp//9c9c9fbpE9JcDVEX0jkFzatOUDr8fkU1TXWO
+hGqk3LNWm9SlEq8viYXrx0ef/nA/KrFPp+Y34CUPoFDg13J3bugKszWFcLeo6Ao9
+uv7BWFOTLDOEvs44KB1nDrtBP58snAMJ1a9sHNIp27Ht1CKkm2QSufKbE9VEQzW2
+LWMB9+zNom7Ba4yofHsBuGY4lJne38znr86pGdXk1X4ZRiH+gAePwTRVNY/a4mWt
+RL5AlvhK+WAm33wBC9HRW7iY2RKzGAvGk5Oz8TTvQH7d1uK36UkcRAPTAjD/peu5
+XgRs4JQwdwR2LLkdUV2snr2BLJqa2tmCzDg7K0e4lJJM4tEu4MARutqQamnUlGOH
+KdjlKyAVNmhqZHMHM+dNCqy7Q0Q0twUVY2N0womKlZw=
