@@ -2,13 +2,14 @@ input:
   use_type_dict: {'Dairying - Cows': 'irrigation', 'Water Supply - Rural': 'water_supply', 'Pasture Irrigation': 'irrigation', 'Crop Irrigation': 'irrigation', 'Stock Yard': 'stockwater', 'Water Supply - Town': 'water_supply', 'Quarrying': 'other', 'Recreational': 'other', 'Gravel extraction': 'other', 'Hydro-electric power generation': 'hydro_electric', 'Food Processing': 'other', 'Meat works': 'other', 'Tourism': 'other', 'Mining works': 'other', 'Industrial': 'other', 'Domestic': 'water_supply', 'Timber Processing incl Sawmills': 'other', 'Peat Harvesting/Processing': 'other', 'Milk and dairy industries': 'other', 'Gravel Wash': 'other'}
 
 remote:
-  waps_key: es/take-permits-waps.csv
-  sd_key: es/take-sd-ratios.csv
-  permits_key: es/take-permits.csv
-  bucket: nz-rma-permits
-  delimiter: /
-  connection_config:
-    service_name: 's3'
-    endpoint_url: https://s3.us-west-002.backblazeb2.com
-    aws_access_key_id: 00203ccd53f4ded000000001c
-    aws_secret_access_key: K0027Q/S+wmIk6sFJaGvr2+zqnxSluc
+  permits:
+    waps_key: es/take-permits-waps.csv
+    sd_key: es/take-sd-ratios.csv
+    permits_key: es/take-permits.csv
+    bucket: nz-rma-permits
+    delimiter: /
+    connection_config:
+      service_name: 's3'
+      endpoint_url: https://s3.us-west-002.backblazeb2.com
+      aws_access_key_id: 00203ccd53f4ded000000001c
+      aws_secret_access_key: K0027Q/S+wmIk6sFJaGvr2+zqnxSluc

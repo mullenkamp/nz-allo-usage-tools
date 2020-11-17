@@ -9,16 +9,17 @@ import os
 import yaml
 import pandas as pd
 import tethys_utils as tu
+from tethysts import Tethys
 
 pd.options.display.max_columns = 10
 
 #########################################
 ### parameters
 
-base_path = os.path.realpath(os.path.dirname(__file__))
-
-with open(os.path.join(base_path, 'parameters.yml')) as param:
-    param = yaml.safe_load(param)
+# base_path = os.path.realpath(os.path.dirname(__file__))
+#
+# with open(os.path.join(base_path, 'parameters.yml')) as param:
+#     param = yaml.safe_load(param)
 
 #########################################
 ### Functions
@@ -43,7 +44,10 @@ def get_permit_data(connection_config, bucket, waps_key, permits_key, sd_key):
     return dict2['waps'], dict2['permits'], dict2['sd']
 
 
+def get_usage_data(connection_config, bucket, waps):
+    """
 
+    """
 
 
 
@@ -182,19 +186,19 @@ def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01',
 ####################################################
 ### Testing
 
-remote = param['remote']
-
-connection_config = remote['connection_config']
-waps_key = remote['waps_key']
-permits_key = remote['permits_key']
-sd_key = remote['sd_key']
-bucket = remote['bucket']
-
-
-waps, permits, sd = get_permit_data(connection_config, bucket, waps_key, permits_key, sd_key)
-
-
-waps1, permits1, sd1 = allo_filter(waps, permits, sd)
+# remote = param['remote']
+#
+# connection_config = remote['connection_config']
+# waps_key = remote['waps_key']
+# permits_key = remote['permits_key']
+# sd_key = remote['sd_key']
+# bucket = remote['bucket']
+#
+#
+# waps, permits, sd = get_permit_data(connection_config, bucket, waps_key, permits_key, sd_key)
+#
+#
+# waps1, permits1, sd1 = allo_filter(waps, permits, sd)
 
 
 
