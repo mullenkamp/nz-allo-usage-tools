@@ -6,14 +6,18 @@ Created on Mon Oct  1 09:55:07 2018
 """
 import numpy as np
 import pandas as pd
-from allotools.filters import allo_filter
-import allotools.parameters as param
+
+###################################
+### Parameters
+
+freq_codes = ['D', 'W', 'M', 'A-JUN']
+
 
 ###################################
 ### Functions
 
 
-def allo_ts_apply(row, from_date, to_date, freq, restr_col, remove_months=False):
+def allo_ts_apply(row, from_date, to_date, freq, limit_col, remove_months=False):
     """
     Pandas apply function that converts the allocation data to a monthly time series.
     """
@@ -52,10 +56,10 @@ def allo_ts_apply(row, from_date, to_date, freq, restr_col, remove_months=False)
 
     if freq in ['A-JUN', 'D', 'W']:
         vol1 = s1.copy()
-        vol1[:] = row[restr_col]
+        vol1[:] = row[limit_col]
     elif 'M' in freq:
         year1 = s1.resample('A-JUN').transform('sum')
-        vol1 = s1/year1 * row[restr_col]
+        vol1 = s1/year1 * row[limit_col]
     else:
         raise ValueError("freq must be either 'A-JUN', 'M', 'W', or 'D'")
 
@@ -76,7 +80,7 @@ def allo_ts_apply(row, from_date, to_date, freq, restr_col, remove_months=False)
     return vols
 
 
-def allo_ts(server, from_date, to_date, freq, restr_type, site_filter=None, crc_filter=None, crc_wap_filter=None, remove_months=False, in_allo=True):
+def allo_ts(permits, from_date, to_date, freq, limit_col, remove_months=False):
     """
     Combo function to completely create a time series from the allocation DataFrame. Source data must be from an instance of the Hydro db.
 
@@ -102,23 +106,18 @@ def allo_ts(server, from_date, to_date, freq, restr_type, site_filter=None, crc_
     Series
         indexed by crc, take_type, and allo_block
     """
+    if freq not in freq_codes:
+        raise ValueError('freq must be one of ' + str(freq_codes))
 
-    if restr_type not in param.restr_type_dict:
-        raise ValueError('restr_type must be one of ' + str(list(param.restr_type_dict.keys())))
-    if freq not in param.freq_codes:
-        raise ValueError('freq must be one of ' + str(param.freq_codes))
+    permits2 = permits.set_index(['permit_id', 'hydro_group']).copy()
 
-    sites, allo2, wap_allo = allo_filter(server, from_date=from_date, to_date=to_date, site_filter=site_filter, crc_filter=crc_filter, crc_wap_filter=crc_wap_filter, in_allo=in_allo)
+    permits3 = permits2.apply(allo_ts_apply, axis=1, from_date=from_date, to_date=to_date, freq=freq, limit_col=limit_col, remove_months=remove_months)
 
-    restr_col = param.restr_type_dict[restr_type]
+    permits4 = permits3.stack()
+    permits4.index.set_names(['permit_id', 'hydro_group', 'date'], inplace=True)
+    permits4.name = 'allo'
 
-    allo3 = allo2.apply(allo_ts_apply, axis=1, from_date=from_date, to_date=to_date, freq=freq, restr_col=restr_col, remove_months=remove_months)
-
-    allo4 = allo3.stack()
-    allo4.index.set_names(['crc', 'take_type', 'allo_block', 'date'], inplace=True)
-    allo4.name = 'allo'
-
-    return allo4
+    return permits4
 
 
 
