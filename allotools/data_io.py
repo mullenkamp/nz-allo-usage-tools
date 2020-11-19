@@ -6,7 +6,6 @@ Created on Wed Oct  3 16:40:35 2018
 """
 import io
 import os
-import yaml
 import pandas as pd
 import tethys_utils as tu
 from tethysts import Tethys
@@ -47,7 +46,7 @@ def get_permit_data(connection_config, bucket, waps_key, permits_key, sd_key):
     return dict2['waps'], dict2['permits'], dict2['sd']
 
 
-def get_usage_data(connection_config, bucket, waps, from_date, to_date):
+def get_usage_data(connection_config, bucket, waps, from_date, to_date, threads=30):
     """
 
     """
@@ -61,7 +60,7 @@ def get_usage_data(connection_config, bucket, waps, from_date, to_date):
     sw_waps = [s['station_id'] for s in sw_stns if s['ref'] in waps]
 
     if sw_waps:
-        sw_data = t1.bulk_time_series_results(sw_ds_id, sw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=20)
+        sw_data = t1.bulk_time_series_results(sw_ds_id, sw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=threads)
 
         sw_data_list = []
         for k, val in sw_data.items():
@@ -83,7 +82,7 @@ def get_usage_data(connection_config, bucket, waps, from_date, to_date):
     gw_waps = [s['station_id'] for s in gw_stns if s['ref'] in waps]
 
     if gw_waps:
-        gw_data = t1.bulk_time_series_results(gw_ds_id, gw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=20)
+        gw_data = t1.bulk_time_series_results(gw_ds_id, gw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=30)
 
         gw_data_list = []
         for k, val in gw_data.items():

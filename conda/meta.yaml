@@ -1,6 +1,6 @@
-{% set name = "EcanAlloUsageTools" %}
-{% set version = "0.1.9" %}
-{% set sha256 = "dda971b4b4af7f91907e5d28c838bffb1e57857bbb3be2401c69392459a8a94f" %}
+{% set name = "nz-allo-usage-tools" %}
+{% set version = "0.0.5" %}
+{% set sha256 = "8225a15e3d767356af348aebe9fcdb2d2f1be05f7a05479b8c603dd028238418" %}
 
 # sha256 is the prefered checksum -- you can get it for a file with:
 #  `openssl sha256 <file name>`.
@@ -37,18 +37,20 @@ requirements:
   run:
     - python>=3.6
     - pandas
-    - pdsql>1.2.4
     - seaborn
+    - tethysts
+    - tethys-utils
+    - pyyaml
 
 test:
   imports:
     - allotools
 
 about:
-  home: https://github.com/mullenkamp/EcanAlloUsageTools
+  home: https://github.com/mullenkamp/nz-allo-usage-tools
   license: Apache License 2.0
   license_family: APACHE
-  summary: Functions to process and analyse ECan allocation and usage data
+  summary: Functions to process and analyse NZ allocation and usage data
   description: ""
   doc_url: ''
   dev_url: ''

@@ -7,11 +7,11 @@ import os
 here = os.path.abspath(os.path.dirname(__file__))
 
 # General parameters
-name = 'EcanAlloUsageTools'
+name = 'nz-allo-usage-tools'
 main_package = 'allotools'
 # datasets = 'datasets'
-version = '0.1.9'
-descrip = 'Functions to process and analyse ECan allocation and usage data'
+version = '0.0.5'
+descrip = 'Functions to process and analyse NZ allocation and usage data'
 
 # The below code is for readthedocs. To have sphinx/readthedocs interact with
 # the contained package, readthedocs needs to build the package. But the dependencies
@@ -19,7 +19,7 @@ descrip = 'Functions to process and analyse ECan allocation and usage data'
 if os.environ.get('READTHEDOCS', False) == 'True':
     INSTALL_REQUIRES = []
 else:
-    INSTALL_REQUIRES = ['pandas', 'pdsql', 'seaborn']
+    INSTALL_REQUIRES = ['pandas', 'tethysts', 'seaborn', 'tethys-utils', 'pyyaml']
 
 # Get the long description from the README file
 with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
@@ -160,9 +160,9 @@ setup(
     #
     # If using Python 2.6 or earlier, then these have to be included in
     # MANIFEST.in as well.
-    # package_data={  # Optional
-    #     main_package: [datasets + '/*.csv'],
-    # },
+    package_data={  # Optional
+        main_package: ['parameters.yml'],
+    },
 
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
