@@ -46,7 +46,7 @@ def get_permit_data(connection_config, bucket, waps_key, permits_key, sd_key):
     return dict2['waps'], dict2['permits'], dict2['sd']
 
 
-def get_usage_data(connection_config, bucket, waps, from_date, to_date, threads=30):
+def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None, threads=30):
     """
 
     """

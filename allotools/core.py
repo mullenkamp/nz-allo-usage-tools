@@ -27,6 +27,7 @@ with open(os.path.join(base_path, 'parameters.yml')) as param:
 pk = ['permit_id', 'wap', 'date']
 dataset_types = ['allo', 'metered_allo',  'usage']
 allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_annual_volume', 'A-JUN': 'max_annual_volume', 'A': 'max_annual_volume'}
+temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered_allo_ts']
 
 #######################################
 ### Testing
@@ -37,8 +38,14 @@ allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_an
 # self = AlloUsage(from_date=from_date, to_date=to_date)
 #
 # results1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+# results2 = self.get_ts(['usage'], 'D', ['wap'])
 
+# wap_filter = {'wap': ['E46/0479', 'E46/0480']}
 
+# self = AlloUsage(from_date=from_date, to_date=to_date, wap_filter=wap_filter)
+
+# results1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+# results2 = self.get_ts(['usage'], 'D', ['wap'])
 
 
 ########################################
@@ -200,7 +207,7 @@ class AlloUsage(object):
                 else:
                     return x[1]
 
-            tsdata1.iloc[1:-1, 1] = tsdata1['total_usage'].rolling(3, center=True).apply(remove_spikes, raw=True).iloc[1:-1]
+            tsdata1.iloc[1:-1, 2] = tsdata1['total_usage'].rolling(3, center=True).apply(remove_spikes, raw=True).iloc[1:-1]
 
             setattr(self, 'usage_ts_daily', tsdata1)
 
@@ -323,7 +330,7 @@ class AlloUsage(object):
         if hasattr(self, 'freq'):
             # if (self.freq != freq) or (self.sd_days != sd_days) or (self.irr_season != irr_season):
             if (self.freq != freq):
-                for d in param.temp_datasets:
+                for d in temp_datasets:
                     if hasattr(self, d):
                         delattr(self, d)
 
