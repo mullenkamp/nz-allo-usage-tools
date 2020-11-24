@@ -150,7 +150,7 @@ def get_usage_data(connection_config, bucket, waps, from_date, to_date, threads=
 #     return allo6, wap_allo2
 
 
-def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01', only_consumptive=True, include_hydroelectric=False):
+def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01', permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
     """
     Function to filter consents and WAPs in various ways.
 
@@ -162,14 +162,14 @@ def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01',
         The start date for the time series.
     to_date: str
         The end date for the time series.
-    site_filter : list or dict
-        If site_filter is a list, then it should represent the columns from the ExternalSite table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
-    permit_id_filter : list or dict
-        If permit_id_filter is a list, then it should represent the columns from the CrcAllo table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
-    permit_id_wap_filter : list or dict
-        If permit_id_wap_filter is a list, then it should represent the columns from the CrcWapAllo table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
-    in_allo : bool
-        Should only the consumptive takes be returned?
+    permit_filter : dict
+        If permit_id_filter is a list, then it should represent the columns from the permit table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+    wap_filter : dict
+        If wap_filter is a list, then it should represent the columns from the wap table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+    only_consumptive : bool
+        Should only the consumptive takes be returned? Default True
+    include_hydroelectric : bool
+        Should hydro-electric takes be included? Default False
 
     Returns
     -------
@@ -181,12 +181,22 @@ def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01',
     waps_cols = ['permit_id', 'wap', 'lon', 'lat']
     waps1 = waps[waps_cols].copy()
 
+    if isinstance(wap_filter, dict):
+        waps_bool1 = [waps1[k].isin(v) for k, v in wap_filter.items()]
+        waps_bool2 = pd.concat(waps_bool1, axis=1).prod(axis=1).astype(bool)
+        waps1 = waps1[waps_bool2].copy()
+
     ### permits
     permit_cols = ['permit_id', 'hydro_group', 'permit_status', 'from_date', 'to_date', 'use_type', 'max_rate', 'max_daily_volume', 'max_annual_volume']
 
     permits1 = permits[permit_cols].copy()
 
     permits1['use_type'] = permits1.use_type.replace(use_type_dict)
+
+    if isinstance(permit_filter, dict):
+        permit_bool1 = [permits1[k].isin(v) for k, v in permit_filter.items()]
+        permit_bool2 = pd.concat(permit_bool1, axis=1).prod(axis=1).astype(bool)
+        permits1 = permits1[permit_bool2].copy()
 
     bool1 = True
 
@@ -225,21 +235,32 @@ def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01',
 
     permits3.loc[permits3.max_annual_volume.isnull(), 'max_annual_volume'] = (permits3.loc[permits3.max_annual_volume.isnull(), 'max_daily_volume'] * 365).round()
 
-    ## Index by permit_id and hydro_group - keep the largest take
+    ## Index by permit_id and hydro_group - keep the largest limits
+    limit_cols = ['max_rate', 'max_daily_volume', 'max_annual_volume']
+    other_cols = list(permits3.columns[~(permits3.columns.isin(limit_cols) | permits3.columns.isin(['permit_id', 'hydro_group']))])
+    grp1 = permits3.groupby(['permit_id', 'hydro_group'])
+    other_df = grp1[other_cols].first()
+    limits_df = grp1[limit_cols].max()
 
+    permits4 = pd.concat([other_df, limits_df], axis=1).reset_index()
 
     ### sd
     sd_cols = ['permit_id', 'wap', 'wap_max_rate', 'sd_ratio']
 
     sd1 = sd[sd_cols].copy()
+
+    ### Filter
     sd2 = sd1[(sd1.permit_id.isin(permits3.permit_id.unique())) & (sd1.wap.isin(waps1.wap.unique()))].copy()
+
+    permits5 = permits4[permits4.permit_id.isin(waps1.permit_id.unique())].copy()
+    waps2 = waps1[waps1.permit_id.isin(permits5.permit_id.unique())].copy()
 
     ### Index the DataFrames
     # permit_id_allo2.set_index(['permit_id', 'hydro_group'], inplace=True)
     # permit_id_wap2.set_index(['permit_id', 'hydro_group', 'wap'], inplace=True)
     # sites2.set_index('wap', inplace=True)
 
-    return waps1, permits3, sd2
+    return waps2, permits5, sd2
 
 
 

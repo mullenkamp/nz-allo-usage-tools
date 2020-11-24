@@ -34,9 +34,9 @@ allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_an
 # from_date = '2018-07-01'
 # to_date = '2020-06-30'
 #
-# a1 = AlloUsage(from_date=from_date, to_date=to_date)
+# self = AlloUsage(from_date=from_date, to_date=to_date)
 #
-# results1 = a1.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+# results1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 
 
 
@@ -55,16 +55,14 @@ class AlloUsage(object):
         The start date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
     to_date : str or None
         The end date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
-    site_filter : dict
-        A dict in the form of {str: [values]} to select specific values from a specific column in the ExternalSite table.
-    crc_filter : dict
-        A dict in the form of {str: [values]} to select specific values from a specific column in the CrcAllo table.
-    crc_wap_filter : dict
-        A dict in the form of {str: [values]} to select specific values from a specific column in the CrcWapAllo table.
-    in_allo : bool
-        Should only the consumptive takes be included?
+    permit_filter : dict
+        If permit_id_filter is a list, then it should represent the columns from the permit table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+    wap_filter : dict
+        If wap_filter is a list, then it should represent the columns from the wap table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+    only_consumptive : bool
+        Should only the consumptive takes be returned? Default True
     include_hydroelectric : bool
-        Should hydroelectric takes be included?
+        Should hydro-electric takes be included? Default False
 
     Returns
     -------
@@ -81,7 +79,7 @@ class AlloUsage(object):
     _permit_remote = param['remote']['permit']
 
     ### Initial import and assignment function
-    def __init__(self, from_date=None, to_date=None, site_filter=None, crc_filter=None, crc_wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+    def __init__(self, from_date=None, to_date=None, permit_filter=None, wap_filter=None,  only_consumptive=True, include_hydroelectric=False):
         """
 
         Parameters
@@ -90,16 +88,14 @@ class AlloUsage(object):
             The start date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
         to_date : str or None
             The end date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
-        site_filter : dict
-            A dict in the form of {str: [values]} to select specific values from a specific column in the ExternalSite table.
-        crc_filter : dict
-            A dict in the form of {str: [values]} to select specific values from a specific column in the CrcAllo table.
-        crc_wap_filter : dict
-            A dict in the form of {str: [values]} to select specific values from a specific column in the CrcWapAllo table.
-        in_allo : bool
-            Should only the consumptive takes be included?
+        permit_filter : dict
+            If permit_id_filter is a list, then it should represent the columns from the permit table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+        wap_filter : dict
+            If wap_filter is a list, then it should represent the columns from the wap table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+        only_consumptive : bool
+            Should only the consumptive takes be returned? Default True
         include_hydroelectric : bool
-            Should hydroelectric takes be included?
+            Should hydro-electric takes be included? Default False
 
         Returns
         -------
@@ -109,7 +105,7 @@ class AlloUsage(object):
         """
         waps0, permits0, sd0 = get_permit_data(self._permit_remote['connection_config'], self._permit_remote['bucket'], self._permit_remote['waps_key'], self._permit_remote['permits_key'], self._permit_remote['sd_key'])
 
-        waps, permits, sd = allo_filter(waps0, permits0, sd0, from_date, to_date)
+        waps, permits, sd = allo_filter(waps0, permits0, sd0, from_date, to_date, permit_filter=permit_filter, wap_filter=wap_filter,  only_consumptive=only_consumptive, include_hydroelectric=include_hydroelectric)
 
         setattr(self, 'waps', waps)
         setattr(self, 'permits', permits)
