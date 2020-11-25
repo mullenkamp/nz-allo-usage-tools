@@ -10,9 +10,9 @@ import pandas as pd
 import yaml
 from allotools.data_io import get_permit_data, get_usage_data, allo_filter
 from allotools.allocation_ts import allo_ts
+import tethys_utils as tu
 # from allotools.plot import plot_group as pg
 # from allotools.plot import plot_stacked as ps
-# import allotools.parameters as param
 from datetime import datetime
 
 #########################################
@@ -196,6 +196,8 @@ class AlloUsage(object):
         else:
             tsdata1 = get_usage_data(self._usage_remote['connection_config'], self._usage_remote['bucket'], waps, self.from_date, self.to_date)
             tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
+
+            tsdata1 = tsdata1[['wap', 'date', 'total_usage']].copy()
 
             ## filter - remove individual spikes and negative values
             tsdata1.loc[tsdata1['total_usage'] < 0, 'total_usage'] = 0
@@ -387,4 +389,3 @@ class AlloUsage(object):
         data1.set_index(pk, inplace=True)
 
         return data1
-
