@@ -150,7 +150,7 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
 #     return allo6, wap_allo2
 
 
-def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01', permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
     """
     Function to filter consents and WAPs in various ways.
 
@@ -221,11 +221,13 @@ def allo_filter(waps, permits, sd, from_date='1900-01-01', to_date='2100-01-01',
     permits2 = permits2[permits2['from_date'].notnull() & permits2['to_date'].notnull()]
 
     # Restrict dates
-    start_time = pd.Timestamp(from_date)
-    end_time = pd.Timestamp(to_date)
+    if isinstance(from_date, str):
+        start_time = pd.Timestamp(from_date)
+        permits2 = permits2[(permits2['to_date'] - start_time).dt.days > 31]
+    if isinstance(to_date, str):
+        end_time = pd.Timestamp(to_date)
+        permits2 = permits2[(end_time - permits2['from_date']).dt.days > 31]
 
-    permits2 = permits2[(permits2['to_date'] - start_time).dt.days > 31]
-    permits2 = permits2[(end_time - permits2['from_date']).dt.days > 31]
     permits3 = permits2[(permits2['to_date'] - permits2['from_date']).dt.days > 31].copy()
 
     ## Calculate rates, daily and annual volumes (if they don't exist)
