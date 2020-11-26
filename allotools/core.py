@@ -114,11 +114,20 @@ class AlloUsage(object):
 
         waps, permits, sd = allo_filter(waps0, permits0, sd0, from_date, to_date, permit_filter=permit_filter, wap_filter=wap_filter,  only_consumptive=only_consumptive, include_hydroelectric=include_hydroelectric)
 
+        if from_date is None:
+            from_date1 = pd.Timestamp('1900-07-01')
+        else:
+            from_date1 = pd.Timestamp(from_date)
+        if to_date is None:
+            to_date1 = pd.Timestamp.now().floor('D')
+        else:
+            to_date1 = pd.Timestamp(to_date)
+
         setattr(self, 'waps', waps)
         setattr(self, 'permits', permits)
         setattr(self, 'sd', sd)
-        setattr(self, 'from_date', from_date)
-        setattr(self, 'to_date', to_date)
+        setattr(self, 'from_date', from_date1)
+        setattr(self, 'to_date', to_date1)
 
 
     def _est_allo_ts(self):
