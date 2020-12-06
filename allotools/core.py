@@ -25,25 +25,27 @@ with open(os.path.join(base_path, 'parameters.yml')) as param:
 
 
 pk = ['permit_id', 'wap', 'date']
-dataset_types = ['allo', 'metered_allo',  'usage']
+dataset_types = ['allo', 'metered_allo',  'usage', 'usage_est']
 allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_annual_volume', 'A-JUN': 'max_annual_volume', 'A': 'max_annual_volume'}
 temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered_allo_ts']
 
 #######################################
 ### Testing
 
-# from_date = '2018-07-01'
+# from_date = '2000-07-01'
 # to_date = '2020-06-30'
 #
 # self = AlloUsage(from_date=from_date, to_date=to_date)
 #
 # results1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 # results2 = self.get_ts(['usage'], 'D', ['wap'])
-
+# results3 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'M', ['permit_id', 'wap'])
+# results3 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'D', ['permit_id', 'wap'])
+#
 # wap_filter = {'wap': ['E46/0479', 'E46/0480']}
-
+#
 # self = AlloUsage(from_date=from_date, to_date=to_date, wap_filter=wap_filter)
-
+#
 # results1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 # results2 = self.get_ts(['usage'], 'D', ['wap'])
 
@@ -203,7 +205,7 @@ class AlloUsage(object):
         if hasattr(self, 'usage_ts_daily'):
             tsdata1 = self.usage_ts_daily
         else:
-            tsdata1 = get_usage_data(self._usage_remote['connection_config'], self._usage_remote['bucket'], waps, self.from_date, self.to_date)
+            tsdata1, stns_waps = get_usage_data(self._usage_remote['connection_config'], self._usage_remote['bucket'], waps, self.from_date, self.to_date)
             tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
 
             tsdata1 = tsdata1[['wap', 'date', 'total_usage']].copy()
@@ -222,10 +224,103 @@ class AlloUsage(object):
 
             setattr(self, 'usage_ts_daily', tsdata1)
 
+            ## Convert station data to DataFrame
+            stns_waps1 = pd.DataFrame([{'wap': s['ref'], 'lon': s['geometry']['coordinates'][0], 'lat': s['geometry']['coordinates'][1]} for s in stns_waps])
+
+            setattr(self, 'waps_only', stns_waps1)
+
         ### Aggregate
         tsdata2 = tu.grp_ts_agg(tsdata1, 'wap', 'date', self.freq, 'sum')
 
         setattr(self, 'usage_ts', tsdata2)
+
+
+    def _usage_estimation(self, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+        """
+
+        """
+        from gistools import vector
+
+        ### Get the necessary data
+
+        allo_use1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+
+        permits = self.permits.copy()
+
+        ### Create Wap locations
+        waps1 = vector.xy_to_gpd('wap', 'lon', 'lat', self.waps.drop('permit_id', axis=1).drop_duplicates('wap'), 4326)
+        waps2 = waps1.to_crs(2193)
+
+        ### Determine which Waps need to be estimated
+        allo_use_mis1 = allo_use1[allo_use1['total_metered_allo'] == 0].copy().reset_index()
+        allo_use_with1 = allo_use1[allo_use1['total_metered_allo'] > 0].copy().reset_index()
+
+        mis_waps1 = allo_use_mis1.groupby(['permit_id', 'wap'])['total_allo'].count().copy()
+        with_waps1 = allo_use_with1.groupby(['permit_id', 'wap'])['total_allo'].count()
+        with_waps2 = with_waps1[with_waps1 >= min_months]
+
+        with_waps3 = pd.merge(with_waps2.reset_index()[['permit_id', 'wap']], permits[['permit_id', 'use_type']], on='permit_id')
+
+        with_waps4 = pd.merge(waps2, with_waps3['wap'], on='wap')
+
+        mis_waps2 = pd.merge(mis_waps1.reset_index(), permits[['permit_id', 'use_type']], on='permit_id')
+        mis_waps3 = pd.merge(waps2, mis_waps2['wap'], on='wap')
+        mis_waps3['geometry'] = mis_waps3['geometry'].buffer(buffer_dis)
+        # mis_waps3.rename(columns={'wap': 'mis_wap'}, inplace=True)
+
+        mis_waps4, poly1 = vector.pts_poly_join(with_waps4.rename(columns={'wap': 'good_wap'}), mis_waps3, 'wap')
+
+        ## Calc ratios
+        allo_use_with2 = pd.merge(allo_use_with1, permits[['permit_id', 'use_type']], on='permit_id')
+
+        allo_use_with2['month'] = allo_use_with2['date'].dt.month
+        allo_use_with2['usage_allo'] = allo_use_with2['total_usage']/allo_use_with2['total_allo']
+
+        allo_use_ratio1 = allo_use_with2.groupby(['permit_id', 'wap', 'use_type', 'month'])['usage_allo'].mean().reset_index()
+
+        allo_use_ratio2 = pd.merge(allo_use_ratio1.rename(columns={'wap': 'good_wap'}), mis_waps4[['good_wap', 'wap']], on='good_wap')
+
+        ## Combine with the missing ones
+        allo_use_mis2 = pd.merge(allo_use_mis1[['permit_id', 'wap', 'date']], permits[['permit_id', 'use_type']], on='permit_id')
+        allo_use_mis2['month'] = allo_use_mis2['date'].dt.month
+
+        allo_use_mis3 = pd.merge(allo_use_mis2, allo_use_ratio2[['use_type', 'month', 'usage_allo', 'wap']], on=['use_type', 'wap', 'month'])
+        allo_use_mis4 = allo_use_mis3.groupby(['permit_id', 'wap', 'date'])['usage_allo'].mean().reset_index()
+
+        allo_use_mis5 = pd.merge(allo_use_mis4, allo_use_mis1[['permit_id', 'wap', 'date', 'total_allo', 'sw_allo', 'gw_allo']], on=['permit_id', 'wap', 'date'])
+        allo_use_mis5['total_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['total_allo']).round()
+        allo_use_mis5['sw_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['sw_allo']).round()
+        allo_use_mis5['gw_usage_est'] = allo_use_mis5['total_usage_est'] - allo_use_mis5['sw_usage_est']
+
+        allo_use_mis6 = allo_use_mis5[['permit_id', 'wap', 'date', 'total_usage_est', 'sw_usage_est', 'gw_usage_est']].copy()
+
+        ### Convert to daily if required
+        if self.freq == 'D':
+            days1 = allo_use_mis6.date.dt.daysinmonth
+            days2 = pd.to_timedelta((days1/2).round().astype('int32'), unit='D')
+
+            usage_rate0 = allo_use_mis6.copy()
+
+            usage_rate0['date'] = usage_rate0['date'] - days2
+
+            grp1 = allo_use_mis6.groupby(['permit_id', 'wap'])
+            first1 = grp1.first()
+            last1 = grp1.last()
+
+            first1.loc[:, 'date'] = pd.to_datetime(first1.loc[:, 'date'].dt.strftime('%Y-%m') + '-01')
+
+            usage_rate1 = pd.concat([first1, usage_rate0.set_index(['permit_id', 'wap']), last1], sort=True).reset_index()
+
+            usage_rate1.set_index('date', inplace=True)
+
+            usage_daily_rate1 = usage_rate1.groupby(['permit_id', 'wap']).apply(lambda x: x.resample('D').interpolate(method='pchip')[['total_usage_est', 'sw_usage_est', 'gw_usage_est']])
+
+        else:
+            usage_daily_rate1 = allo_use_mis6.set_index(['permit_id', 'wap', 'date'])
+
+        setattr(self, 'usage_est', usage_daily_rate1)
+
+        return usage_daily_rate1
 
 
     def _split_usage_ts(self, usage_allo_ratio=2):
@@ -303,7 +398,7 @@ class AlloUsage(object):
             setattr(self, 'metered_restr_allo_ts', allo4)
 
 
-    def get_ts(self, datasets, freq, groupby, usage_allo_ratio=2):
+    def get_ts(self, datasets, freq, groupby, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
         """
         Function to create a time series of allocation and usage.
 
@@ -362,6 +457,9 @@ class AlloUsage(object):
         if 'usage' in datasets:
             self._split_usage_ts(usage_allo_ratio)
             all1.append(self.split_usage_ts)
+        if 'usage_est' in datasets:
+            usage_est = self._usage_estimation(usage_allo_ratio, buffer_dis, min_months)
+            all1.append(usage_est)
 
         if 'A' in freq_agg:
             all2 = util.grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg).sum().reset_index()

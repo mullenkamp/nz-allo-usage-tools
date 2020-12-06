@@ -53,13 +53,17 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     remote = [{'bucket': bucket, 'connection_config': connection_config}]
     t1 = Tethys(remote)
 
+    stns_all = []
+
     ## Surface Water
     sw_ds = [ds for ds in t1.datasets if ds['feature'] == 'waterway'][0]
     sw_ds_id = sw_ds['dataset_id']
     sw_stns = t1.get_stations(sw_ds_id)
-    sw_waps = [s['station_id'] for s in sw_stns if s['ref'] in waps]
+    sw_stns1 = [s for s in sw_stns if s['ref'] in waps]
 
-    if sw_waps:
+    if sw_stns1:
+        sw_waps = [s['station_id'] for s in sw_stns1]
+
         sw_data = t1.bulk_time_series_results(sw_ds_id, sw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=threads)
 
         sw_data_list = []
@@ -72,6 +76,8 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
 
         sw_data2 = pd.concat(sw_data_list)
 
+        stns_all.extend(sw_stns1)
+
     else:
         sw_data2 = pd.DataFrame(columns=['time', 'wap', 'water_use'])
 
@@ -79,9 +85,11 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     gw_ds = [ds for ds in t1.datasets if ds['feature'] == 'groundwater'][0]
     gw_ds_id = gw_ds['dataset_id']
     gw_stns = t1.get_stations(gw_ds_id)
-    gw_waps = [s['station_id'] for s in gw_stns if s['ref'] in waps]
+    gw_stns1 = [s for s in gw_stns if s['ref'] in waps]
 
-    if gw_waps:
+    if gw_stns1:
+        gw_waps = [s['station_id'] for s in gw_stns1]
+
         gw_data = t1.bulk_time_series_results(gw_ds_id, gw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=30)
 
         gw_data_list = []
@@ -94,13 +102,15 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
 
         gw_data2 = pd.concat(gw_data_list)
 
+        stns_all.extend(gw_stns1)
+
     else:
         gw_data2 = pd.DataFrame(columns=['time', 'wap', 'water_use'])
 
     all_data = pd.concat([sw_data2, gw_data2])
     all_data['time'] = all_data['time'] + pd.DateOffset(hours=12)
 
-    return all_data
+    return all_data, stns_all
 
 
 
