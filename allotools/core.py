@@ -243,9 +243,13 @@ class AlloUsage(object):
 
         ### Get the necessary data
 
+        freq = self.freq
+
         allo_use1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 
         permits = self.permits.copy()
+
+        self.freq = freq
 
         ### Create Wap locations
         waps1 = vector.xy_to_gpd('wap', 'lon', 'lat', self.waps.drop('permit_id', axis=1).drop_duplicates('wap'), 4326)
@@ -299,6 +303,10 @@ class AlloUsage(object):
             days1 = allo_use_mis6.date.dt.daysinmonth
             days2 = pd.to_timedelta((days1/2).round().astype('int32'), unit='D')
 
+            allo_use_mis6['total_usage_est'] = allo_use_mis6['total_usage_est'] / days1
+            allo_use_mis6['sw_usage_est'] = allo_use_mis6['sw_usage_est'] / days1
+            allo_use_mis6['gw_usage_est'] = allo_use_mis6['gw_usage_est'] / days1
+
             usage_rate0 = allo_use_mis6.copy()
 
             usage_rate0['date'] = usage_rate0['date'] - days2
@@ -309,11 +317,11 @@ class AlloUsage(object):
 
             first1.loc[:, 'date'] = pd.to_datetime(first1.loc[:, 'date'].dt.strftime('%Y-%m') + '-01')
 
-            usage_rate1 = pd.concat([first1, usage_rate0.set_index(['permit_id', 'wap']), last1], sort=True).reset_index()
+            usage_rate1 = pd.concat([first1, usage_rate0.set_index(['permit_id', 'wap']), last1], sort=True).reset_index().sort_values(['permit_id', 'wap', 'date'])
 
             usage_rate1.set_index('date', inplace=True)
 
-            usage_daily_rate1 = usage_rate1.groupby(['permit_id', 'wap']).apply(lambda x: x.resample('D').interpolate(method='pchip')[['total_usage_est', 'sw_usage_est', 'gw_usage_est']])
+            usage_daily_rate1 = usage_rate1.groupby(['permit_id', 'wap']).apply(lambda x: x.resample('D').interpolate(method='pchip')[['total_usage_est', 'sw_usage_est', 'gw_usage_est']]).round(2)
 
         else:
             usage_daily_rate1 = allo_use_mis6.set_index(['permit_id', 'wap', 'date'])
@@ -479,19 +487,19 @@ class AlloUsage(object):
         """
 
         """
-        sites_col = [c for c in cols if c in self.sites.columns]
-        allo_col = [c for c in cols if c in self.allo.columns]
+        # sites_col = [c for c in cols if c in self.waps.columns]
+        allo_col = [c for c in cols if c in self.permits.columns]
 
         data1 = data.copy()
 
-        if sites_col:
-            all_sites_col = ['wap']
-            all_sites_col.extend(sites_col)
-            data1 = pd.merge(data1, self.sites.reset_index()[all_sites_col], on='wap')
+        # if sites_col:
+        #     all_sites_col = ['wap']
+        #     all_sites_col.extend(sites_col)
+        #     data1 = pd.merge(data1, self.waps.reset_index()[all_sites_col], on='wap')
         if allo_col:
             all_allo_col = ['permit_id']
             all_allo_col.extend(allo_col)
-            data1 = pd.merge(data1, self.allo.reset_index()[all_allo_col], on=all_allo_col)
+            data1 = pd.merge(data1, self.permits[all_allo_col], on=all_allo_col)
 
         data1.set_index(pk, inplace=True)
 
