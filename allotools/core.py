@@ -15,6 +15,8 @@ import tethys_utils as tu
 # from allotools.plot import plot_stacked as ps
 from datetime import datetime
 
+from matplotlib.pyplot import show
+
 #########################################
 ### parameters
 
@@ -41,7 +43,7 @@ temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered
 # results2 = self.get_ts(['usage'], 'D', ['wap'])
 # results3 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'M', ['permit_id', 'wap'])
 # results3 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'D', ['permit_id', 'wap'])
-#
+
 # wap_filter = {'wap': ['E46/0479', 'E46/0480']}
 #
 # self = AlloUsage(from_date=from_date, to_date=to_date, wap_filter=wap_filter)
@@ -49,6 +51,12 @@ temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered
 # results1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 # results2 = self.get_ts(['usage'], 'D', ['wap'])
 
+# permit_filter = {'permit_id': ['200040']}
+#
+# self = AlloUsage(from_date=from_date, to_date=to_date, permit_filter=permit_filter)
+#
+# results1 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'M', ['permit_id', 'wap'])
+# results2 = self.get_ts(['usage'], 'D', ['wap'])
 
 ########################################
 ### Core class
