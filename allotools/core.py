@@ -29,6 +29,7 @@ with open(os.path.join(base_path, 'parameters.yml')) as param:
 pk = ['permit_id', 'wap', 'date']
 dataset_types = ['allo', 'metered_allo',  'usage', 'usage_est']
 allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_annual_volume', 'A-JUN': 'max_annual_volume', 'A': 'max_annual_volume'}
+allo_mult_dict = {'D': 0.001*24*60*60, 'W': 0.001*24*60*60*7, 'M': 0.001*24*60*60*30, 'A-JUN': 0.001*24*60*60*365, 'A': 0.001*24*60*60*365}
 temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered_allo_ts']
 
 #######################################
@@ -44,7 +45,7 @@ temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered
 # results3 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'M', ['permit_id', 'wap'])
 # results3 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'D', ['permit_id', 'wap'])
 
-# wap_filter = {'wap': ['E46/0479', 'E46/0480']}
+# wap_filter = {'wap': ['C44/0001']}
 #
 # self = AlloUsage(from_date=from_date, to_date=to_date, wap_filter=wap_filter)
 #
@@ -56,7 +57,7 @@ temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered
 # self = AlloUsage(from_date=from_date, to_date=to_date, permit_filter=permit_filter)
 #
 # results1 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'M', ['permit_id', 'wap'])
-# results2 = self.get_ts(['usage'], 'D', ['wap'])
+# results2 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'D', ['permit_id', 'wap'])
 
 ########################################
 ### Core class
@@ -144,9 +145,15 @@ class AlloUsage(object):
         """
 
         """
-        limit_col = allo_type_dict[self.freq]
+        ### Run the allocation time series creation
+        ### This has currently been hard-soded to only use the max rate. This should probably be changed once the permitting data gets fixed.
+        # limit_col = allo_type_dict[self.freq]
+        multiplier = allo_mult_dict[self.freq]
+        limit_col = 'max_rate'
         allo4 = allo_ts(self.permits, self.from_date, self.to_date, self.freq, limit_col)
         allo4.name = 'total_allo'
+
+        allo4 = allo4 * multiplier
 
         # if self.irr_season and ('A' not in self.freq):
         #     dates1 = allo4.index.levels[2]
