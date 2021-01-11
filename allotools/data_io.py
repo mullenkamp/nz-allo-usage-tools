@@ -64,7 +64,7 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     if sw_stns1:
         sw_waps = [s['station_id'] for s in sw_stns1]
 
-        sw_data = t1.bulk_time_series_results(sw_ds_id, sw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=threads)
+        sw_data = t1.get_bulk_results(sw_ds_id, sw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=threads)
 
         sw_data_list = []
         for k, val in sw_data.items():
@@ -90,7 +90,7 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     if gw_stns1:
         gw_waps = [s['station_id'] for s in gw_stns1]
 
-        gw_data = t1.bulk_time_series_results(gw_ds_id, gw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=30)
+        gw_data = t1.get_bulk_results(gw_ds_id, gw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=30)
 
         gw_data_list = []
         for k, val in gw_data.items():
@@ -301,17 +301,3 @@ def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=N
 #
 #
 # use_data = get_usage_data(connection_config, bucket, waps)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
