@@ -32,7 +32,7 @@ def allo_ts_apply(row, from_date, to_date, freq, limit_col, remove_months=False)
     if crc_to_date < end:
         end = crc_to_date
 
-    end_date = end - pd.DateOffset(hours=1) + pd.tseries.frequencies.to_offset(freq)
+    end_date = (end - pd.DateOffset(hours=1) + pd.tseries.frequencies.to_offset(freq)).floor('D')
     dates1 = pd.date_range(start, end_date, freq=freq)
     if remove_months and ('A' not in freq):
         mon1 = np.arange(row['from_month'], 13)
@@ -75,7 +75,7 @@ def allo_ts_apply(row, from_date, to_date, freq, limit_col, remove_months=False)
             alt_dates[-1] = end_diff
     ratio_days = alt_dates/s1
 
-    vols = (ratio_days * vol1).round()
+    vols = ratio_days * vol1
 
     return vols
 
@@ -109,12 +109,12 @@ def allo_ts(permits, from_date, to_date, freq, limit_col, remove_months=False):
     if freq not in freq_codes:
         raise ValueError('freq must be one of ' + str(freq_codes))
 
-    permits2 = permits.set_index(['permit_id', 'hydro_group']).copy()
+    permits2 = permits.set_index(['permit_id', 'hydro_feature']).copy()
 
     permits3 = permits2.apply(allo_ts_apply, axis=1, from_date=from_date, to_date=to_date, freq=freq, limit_col=limit_col, remove_months=remove_months)
 
     permits4 = permits3.stack()
-    permits4.index.set_names(['permit_id', 'hydro_group', 'date'], inplace=True)
+    permits4.index.set_names(['permit_id', 'hydro_feature', 'date'], inplace=True)
     permits4.name = 'allo'
 
     return permits4

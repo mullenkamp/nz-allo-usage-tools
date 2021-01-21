@@ -15,7 +15,7 @@ import tethys_utils as tu
 # from allotools.plot import plot_stacked as ps
 from datetime import datetime
 
-from matplotlib.pyplot import show
+# from matplotlib.pyplot import show
 
 #########################################
 ### parameters
@@ -25,11 +25,10 @@ base_path = os.path.realpath(os.path.dirname(__file__))
 with open(os.path.join(base_path, 'parameters.yml')) as param:
     param = yaml.safe_load(param)
 
-
 pk = ['permit_id', 'wap', 'date']
 dataset_types = ['allo', 'metered_allo',  'usage', 'usage_est']
 allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_annual_volume', 'A-JUN': 'max_annual_volume', 'A': 'max_annual_volume'}
-allo_mult_dict = {'D': 0.001*24*60*60, 'W': 0.001*24*60*60*7, 'M': 0.001*24*60*60*30, 'A-JUN': 0.001*24*60*60*365, 'A': 0.001*24*60*60*365}
+# allo_mult_dict = {'D': 0.001*24*60*60, 'W': 0.001*24*60*60*7, 'M': 0.001*24*60*60*30, 'A-JUN': 0.001*24*60*60*365, 'A': 0.001*24*60*60*365}
 temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered_allo_ts']
 
 #######################################
@@ -121,9 +120,9 @@ class AlloUsage(object):
             with all of the base sites, allo, and allo_wap DataFrames
 
         """
-        waps0, permits0, sd0 = get_permit_data(self._permit_remote['connection_config'], self._permit_remote['bucket'], self._permit_remote['waps_key'], self._permit_remote['permits_key'], self._permit_remote['sd_key'])
+        permits0 = get_permit_data(self._permit_remote['connection_config'], self._permit_remote['bucket'], self._permit_remote['permits_key'])
 
-        waps, permits, sd = allo_filter(waps0, permits0, sd0, from_date, to_date, permit_filter=permit_filter, wap_filter=wap_filter,  only_consumptive=only_consumptive, include_hydroelectric=include_hydroelectric)
+        waps, permits = allo_filter(permits0, from_date, to_date, permit_filter=permit_filter, wap_filter=wap_filter, only_consumptive=only_consumptive, include_hydroelectric=include_hydroelectric)
 
         if from_date is None:
             from_date1 = pd.Timestamp('1900-07-01')
@@ -136,7 +135,7 @@ class AlloUsage(object):
 
         setattr(self, 'waps', waps)
         setattr(self, 'permits', permits)
-        setattr(self, 'sd', sd)
+        # setattr(self, 'sd', sd)
         setattr(self, 'from_date', from_date1)
         setattr(self, 'to_date', to_date1)
 
@@ -147,13 +146,13 @@ class AlloUsage(object):
         """
         ### Run the allocation time series creation
         ### This has currently been hard-soded to only use the max rate. This should probably be changed once the permitting data gets fixed.
-        # limit_col = allo_type_dict[self.freq]
-        multiplier = allo_mult_dict[self.freq]
-        limit_col = 'max_rate'
-        allo4 = allo_ts(self.permits, self.from_date, self.to_date, self.freq, limit_col)
+        limit_col = allo_type_dict[self.freq]
+        # multiplier = allo_mult_dict[self.freq]
+        # limit_col = 'max_rate'
+        allo4 = allo_ts(self.permits, self.from_date, self.to_date, self.freq, limit_col).round()
         allo4.name = 'total_allo'
 
-        allo4 = allo4 * multiplier
+        # allo4 = (allo4 * multiplier).round()
 
         # if self.irr_season and ('A' not in self.freq):
         #     dates1 = allo4.index.levels[2]
@@ -167,28 +166,30 @@ class AlloUsage(object):
         """
 
         """
-        allo5 = pd.merge(self.total_allo_ts, self.waps[['permit_id', 'wap']], on=['permit_id'])
-        allo6 = pd.merge(allo5, self.sd, on=['permit_id', 'wap'], how='left')
+        allo6 = pd.merge(self.total_allo_ts, self.waps[['permit_id', 'wap', 'sd_ratio']], on=['permit_id'])
+        # allo6 = pd.merge(allo5, self.sd, on=['permit_id', 'wap'], how='left')
 
-        allo6['combo_wap_allo'] = allo6.groupby(['permit_id', 'hydro_group', 'date'])['total_allo'].transform('sum')
+        allo6['combo_wap_allo'] = allo6.groupby(['permit_id', 'hydro_feature', 'date'])['total_allo'].transform('sum')
         allo6['combo_wap_ratio'] = allo6['total_allo']/allo6['combo_wap_allo']
 
-        allo6['rate_wap_tot'] = allo6.groupby(['permit_id', 'hydro_group', 'date'])['wap_max_rate'].transform('sum')
-        allo6['rate_wap_ratio'] = allo6['wap_max_rate']/allo6['rate_wap_tot']
+        # allo6['rate_wap_tot'] = allo6.groupby(['permit_id', 'hydro_feature', 'date'])['wap_max_rate'].transform('sum')
+        # allo6['rate_wap_ratio'] = allo6['wap_max_rate']/allo6['rate_wap_tot']
 
         allo6['wap_allo'] = allo6['total_allo'] * allo6['combo_wap_ratio']
 
-        allo6.loc[allo6.rate_wap_ratio.notnull(), 'wap_allo'] = allo6.loc[allo6.rate_wap_ratio.notnull(), 'rate_wap_ratio'] * allo6.loc[allo6.rate_wap_ratio.notnull(), 'total_allo']
+        # allo6.loc[allo6.rate_wap_ratio.notnull(), 'wap_allo'] = allo6.loc[allo6.rate_wap_ratio.notnull(), 'rate_wap_ratio'] * allo6.loc[allo6.rate_wap_ratio.notnull(), 'total_allo']
 
-        allo7 = allo6.drop(['combo_wap_allo', 'combo_wap_ratio', 'rate_wap_tot', 'rate_wap_ratio', 'wap_max_rate', 'total_allo'], axis=1).rename(columns={'wap_allo': 'total_allo'}).copy()
+        # allo7 = allo6.drop(['combo_wap_allo', 'combo_wap_ratio', 'rate_wap_tot', 'rate_wap_ratio', 'wap_max_rate', 'total_allo'], axis=1).rename(columns={'wap_allo': 'total_allo'}).copy()
 
-        allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_group == 'Groundwater'), 'sd_ratio'] = 0
-        allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_group == 'Surface Water'), 'sd_ratio'] = 1
+        allo7 = allo6.drop(['combo_wap_allo', 'combo_wap_ratio', 'total_allo'], axis=1).rename(columns={'wap_allo': 'total_allo'}).copy()
+
+        allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'groundwater'), 'sd_ratio'] = 0
+        allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'surface water'), 'sd_ratio'] = 1
 
         allo7['sw_allo'] = allo7['total_allo'] * allo7['sd_ratio']
         allo7['gw_allo'] = allo7['total_allo'] - allo7['sw_allo']
 
-        allo8 = allo7.drop(['hydro_group', 'sd_ratio'], axis=1).groupby(pk).mean()
+        allo8 = allo7.drop(['hydro_feature', 'sd_ratio'], axis=1).groupby(pk).mean()
 
         setattr(self, 'wap_allo_ts', allo8)
 
@@ -485,7 +486,7 @@ class AlloUsage(object):
             all1.append(usage_est)
 
         if 'A' in freq_agg:
-            all2 = util.grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg).sum().reset_index()
+            all2 = tu.grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg).sum().reset_index()
         else:
             all2 = pd.concat(all1, axis=1).reset_index()
 

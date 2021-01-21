@@ -6,6 +6,7 @@ Created on Wed Oct  3 16:40:35 2018
 """
 import io
 import os
+import yaml
 import pandas as pd
 import tethys_utils as tu
 from tethysts import Tethys
@@ -16,34 +17,30 @@ pd.options.display.max_columns = 10
 #########################################
 ### parameters
 
-# base_path = os.path.realpath(os.path.dirname(__file__))
-#
-# with open(os.path.join(base_path, 'parameters.yml')) as param:
-#     param = yaml.safe_load(param)
+base_path = os.path.realpath(os.path.dirname(__file__))
 
-use_type_dict = {'Dairying - Cows': 'irrigation', 'Water Supply - Rural': 'water_supply', 'Pasture Irrigation': 'irrigation', 'Crop Irrigation': 'irrigation', 'Stock Yard': 'stockwater', 'Water Supply - Town': 'water_supply', 'Quarrying': 'other', 'Recreational': 'other', 'Gravel extraction': 'other', 'Hydro-electric power generation': 'hydro_electric', 'Food Processing': 'other', 'Meat works': 'other', 'Tourism': 'other', 'Mining works': 'other', 'Industrial': 'other', 'Domestic': 'water_supply', 'Timber Processing incl Sawmills': 'other', 'Peat Harvesting/Processing': 'other', 'Milk and dairy industries': 'other', 'Gravel Wash': 'other', 'Carwash': 'other', 'Contaminated land earthworks': 'other', 'Dairying - Sheep': 'irrigation', 'Fertiliser Work': 'other', 'Fish Processing': 'other', 'Fisheries and wildlife habitat/control': 'other', 'Food Processing': 'other', 'Gravel Wash': 'other', 'Gravel extraction': 'other', 'Horticulture Irrigation': 'irrigation', 'Landfill and transfer stations': 'other', 'Manufacturing': 'other', 'River control': 'other', 'Slink Skins': 'other', 'Stockwater': 'stockwater', 'Transport': 'other', 'Truckwash': 'other'}
+with open(os.path.join(base_path, 'parameters.yml')) as param:
+    param = yaml.safe_load(param)
+
+use_type_dict = param['input']['use_type_dict']
+
+# use_type_dict = {'Dairying - Cows': 'irrigation', 'Water Supply - Rural': 'water_supply', 'Pasture Irrigation': 'irrigation', 'Crop Irrigation': 'irrigation', 'Stock Yard': 'stockwater', 'Water Supply - Town': 'water_supply', 'Quarrying': 'other', 'Recreational': 'other', 'Gravel extraction': 'other', 'Hydro-electric power generation': 'hydro_electric', 'Food Processing': 'other', 'Meat works': 'other', 'Tourism': 'other', 'Mining works': 'other', 'Industrial': 'other', 'Domestic': 'water_supply', 'Timber Processing incl Sawmills': 'other', 'Peat Harvesting/Processing': 'other', 'Milk and dairy industries': 'other', 'Gravel Wash': 'other', 'Carwash': 'other', 'Contaminated land earthworks': 'other', 'Dairying - Sheep': 'irrigation', 'Fertiliser Work': 'other', 'Fish Processing': 'other', 'Fisheries and wildlife habitat/control': 'other', 'Food Processing': 'other', 'Gravel Wash': 'other', 'Gravel extraction': 'other', 'Horticulture Irrigation': 'irrigation', 'Landfill and transfer stations': 'other', 'Manufacturing': 'other', 'River control': 'other', 'Slink Skins': 'other', 'Stockwater': 'stockwater', 'Transport': 'other', 'Truckwash': 'other'}
 
 #########################################
 ### Functions
 
 
-def get_permit_data(connection_config, bucket, waps_key, permits_key, sd_key):
+def get_permit_data(connection_config, bucket, permits_key):
     """
 
     """
-    dict1 = {'waps': waps_key, 'permits': permits_key, 'sd': sd_key}
-    dict2 = dict1.copy()
-
     s3 = tu.s3_connection(connection_config)
 
-    for k, key in dict1.items():
-        resp = s3.get_object(Bucket=bucket, Key=key)
-        obj1 = resp['Body'].read()
-        s_io = io.StringIO(obj1.decode())
-        csv1 = pd.read_csv(s_io)
-        dict2[k] = csv1
+    resp = s3.get_object(Bucket=bucket, Key=permits_key)
+    obj1 = resp['Body'].read()
+    permits = tu.read_json_zstd(obj1)
 
-    return dict2['waps'], dict2['permits'], dict2['sd']
+    return permits
 
 
 def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None, threads=30):
@@ -113,54 +110,7 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     return all_data, stns_all
 
 
-
-
-
-
-
-
-
-
-# def ts_filter(allo, from_date='1900-07-01', to_date='2020-06-30', in_allo=True):
-#     """
-#     Function to take an allo DataFrame and filter out the consents that cannot be converted to a time series due to missing data.
-#     """
-#     allo['to_date'] = pd.to_datetime(allo['to_date'], errors='coerce')
-#     allo['from_date'] = pd.to_datetime(allo['from_date'], errors='coerce')
-#
-#     ### Remove consents without daily volumes (and consequently yearly volumes)
-#     allo2 = allo1[allo1.daily_vol.notnull()]
-#
-#     ### Remove consents without to/from dates or date ranges of less than a month
-#     allo3 = allo2[allo2['from_date'].notnull() & allo2['to_date'].notnull()]
-#
-#     ### Restrict dates
-#     start_time = pd.Timestamp(from_date)
-#     end_time = pd.Timestamp(to_date)
-#
-#     allo4 = allo3[(allo3['to_date'] - start_time).dt.days > 31]
-#     allo5 = allo4[(end_time - allo4['from_date']).dt.days > 31]
-#
-#     allo5 = allo5[(allo5['to_date'] - allo5['from_date']).dt.days > 31]
-#
-#     ### Restrict by status_details
-#     allo6 = allo5[allo5.permit_status.isin(param.status_codes)]
-#
-#     ### In allocation columns
-#     if in_allo:
-#         wap_allo = wap_allo[(wap_allo.hydro_group == 'Surface Water') & (wap_allo.in_sw_allo) | (wap_allo.hydro_group == 'Groundwater')]
-#         allo6 = allo6[(allo6.hydro_group == 'Surface Water') | ((allo6.hydro_group == 'Groundwater') & (allo6.in_gw_allo))]
-#         allo6 = allo6[(allo6.hydro_group == 'Groundwater') | allo6.permit_id.isin(wap_allo.permit_id.unique())]
-#
-#     ### Select the permit_id_waps
-#     wap_allo2 = pd.merge(wap_allo, allo6[['permit_id', 'hydro_group']], on=['permit_id', 'hydro_group'], how='inner')
-#     allo6 = pd.merge(allo6, wap_allo2[['permit_id', 'hydro_group']].drop_duplicates(), on=['permit_id', 'hydro_group'], how='inner')
-#
-#     ### Return
-#     return allo6, wap_allo2
-
-
-def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
     """
     Function to filter consents and WAPs in various ways.
 
@@ -186,9 +136,39 @@ def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=N
     Three DataFrames
         Representing the filters on the ExternalSites, CrcAllo, and CrcWapAllo
     """
+    ### Process the premits dict into the three dataframes
+    waps0 = []
+    permits0 = []
+
+    for p in permits_dict:
+        if p['excercised']:
+            if p['activity']['activity_type'] == 'consumptive take water':
+                p1 = {'permit_id': p['permit_id'], 'hydro_feature': p['activity']['hydro_feature'], 'permit_status': p['status'], 'use_type': p['activity']['primary_purpose'], 'max_rate': p['activity']['condition'][0]['limit'][0]['value'], 'from_date': p['commencement_date']}
+
+                if 'effective_end_date' in p:
+                    p1.update({'to_date': p['effective_end_date']})
+                else:
+                    p1.update({'to_date': p['expiry_date']})
+
+                permits0.extend([p1])
+
+                for s in p['activity']['station']:
+                    w1 = {'permit_id': p['permit_id'], 'wap': s['ref'], 'lat': s['geometry']['coordinates'][1], 'lon': s['geometry']['coordinates'][0]}
+                    if 'stream_depletion_ratio' in s:
+                        w1.update({'sd_ratio': s['stream_depletion_ratio']})
+                    waps0.extend([w1])
+
+    waps = pd.DataFrame(waps0)
+    permits = pd.DataFrame(permits0)
+    permits['from_date'] = pd.to_datetime(permits['from_date'])
+    permits['to_date'] = pd.to_datetime(permits['to_date'])
+
+    permits = permits[permits['max_rate'] > 0].copy()
+    permits['max_daily_volume'] = permits['max_rate'] *60*60*24*0.001
+    permits['max_annual_volume'] = permits['max_rate'] *60*60*24*365*0.001
 
     ### Waps
-    waps_cols = ['permit_id', 'wap', 'lon', 'lat']
+    waps_cols = ['permit_id', 'wap', 'lon', 'lat', 'sd_ratio']
     waps1 = waps[waps_cols].copy()
 
     if isinstance(wap_filter, dict):
@@ -197,7 +177,7 @@ def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=N
         waps1 = waps1[waps_bool2].copy()
 
     ### permits
-    permit_cols = ['permit_id', 'hydro_group', 'permit_status', 'from_date', 'to_date', 'use_type', 'max_rate', 'max_daily_volume', 'max_annual_volume']
+    permit_cols = ['permit_id', 'hydro_feature', 'permit_status', 'from_date', 'to_date', 'use_type', 'max_rate', 'max_daily_volume', 'max_annual_volume']
 
     permits1 = permits[permit_cols].copy()
 
@@ -210,8 +190,8 @@ def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=N
 
     bool1 = True
 
-    if only_consumptive:
-        bool1 = permits.exercised & permits.consumptive
+    # if only_consumptive:
+    #     bool1 = permits.exercised & permits.consumptive
     if not include_hydroelectric:
         bool1 = bool1 & (permits1.use_type != 'hydro_electric')
 
@@ -241,28 +221,28 @@ def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=N
     permits3 = permits2[(permits2['to_date'] - permits2['from_date']).dt.days > 31].copy()
 
     ## Calculate rates, daily and annual volumes (if they don't exist)
-    permits3.loc[permits3.max_rate.isnull(), 'max_rate'] = (permits3.loc[permits3.max_rate.isnull(), 'max_daily_volume'] * 1000/60/60/24).round()
+    # permits3.loc[permits3.max_rate.isnull(), 'max_rate'] = (permits3.loc[permits3.max_rate.isnull(), 'max_daily_volume'] * 1000/60/60/24).round()
 
-    permits3.loc[permits3.max_daily_volume.isnull(), 'max_daily_volume'] = (permits3.loc[permits3.max_daily_volume.isnull(), 'max_rate'] * 60*60*24/1000).round()
+    # permits3.loc[permits3.max_daily_volume.isnull(), 'max_daily_volume'] = (permits3.loc[permits3.max_daily_volume.isnull(), 'max_rate'] * 60*60*24/1000).round()
 
-    permits3.loc[permits3.max_annual_volume.isnull(), 'max_annual_volume'] = (permits3.loc[permits3.max_annual_volume.isnull(), 'max_daily_volume'] * 365).round()
+    # permits3.loc[permits3.max_annual_volume.isnull(), 'max_annual_volume'] = (permits3.loc[permits3.max_annual_volume.isnull(), 'max_daily_volume'] * 365).round()
 
     ## Index by permit_id and hydro_group - keep the largest limits
     limit_cols = ['max_rate', 'max_daily_volume', 'max_annual_volume']
-    other_cols = list(permits3.columns[~(permits3.columns.isin(limit_cols) | permits3.columns.isin(['permit_id', 'hydro_group']))])
-    grp1 = permits3.groupby(['permit_id', 'hydro_group'])
+    other_cols = list(permits3.columns[~(permits3.columns.isin(limit_cols) | permits3.columns.isin(['permit_id', 'hydro_feature']))])
+    grp1 = permits3.groupby(['permit_id', 'hydro_feature'])
     other_df = grp1[other_cols].first()
     limits_df = grp1[limit_cols].max()
 
     permits4 = pd.concat([other_df, limits_df], axis=1).reset_index()
 
     ### sd
-    sd_cols = ['permit_id', 'wap', 'wap_max_rate', 'sd_ratio']
+    # sd_cols = ['wap', 'sd_ratio']
 
-    sd1 = sd[sd_cols].copy()
+    # sd1 = sd[sd_cols].copy()
 
     ### Filter
-    sd2 = sd1[(sd1.permit_id.isin(permits3.permit_id.unique())) & (sd1.wap.isin(waps1.wap.unique()))].copy()
+    # sd2 = sd1[(sd1.permit_id.isin(permits3.permit_id.unique())) & (sd1.wap.isin(waps1.wap.unique()))].copy()
 
     permits5 = permits4[permits4.permit_id.isin(waps1.permit_id.unique())].copy()
     waps2 = waps1[waps1.permit_id.isin(permits5.permit_id.unique())].copy()
@@ -272,7 +252,7 @@ def allo_filter(waps, permits, sd, from_date=None, to_date=None, permit_filter=N
     # permit_id_wap2.set_index(['permit_id', 'hydro_group', 'wap'], inplace=True)
     # sites2.set_index('wap', inplace=True)
 
-    return waps2, permits5, sd2
+    return waps2, permits5
 
 
 
