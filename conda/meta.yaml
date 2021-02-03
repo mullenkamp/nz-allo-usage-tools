@@ -1,6 +1,6 @@
 {% set name = "nz-allo-usage-tools" %}
-{% set version = "0.0.17" %}
-{% set sha256 = "e6287ba22034e0656b268eb3e05fae158efeec99b1ce9d4d58544f30cc746f23" %}
+{% set version = "0.0.18" %}
+{% set sha256 = "7364d19614d978b5b76aea8d6485facd77b19a06fe888c87bc6c577b73367dd7" %}
 
 # sha256 is the prefered checksum -- you can get it for a file with:
 #  `openssl sha256 <file name>`.

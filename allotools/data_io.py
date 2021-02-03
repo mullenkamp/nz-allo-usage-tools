@@ -176,6 +176,12 @@ def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, 
         waps_bool2 = pd.concat(waps_bool1, axis=1).prod(axis=1).astype(bool)
         waps1 = waps1[waps_bool2].copy()
 
+    if isinstance(wap_filter, list):
+        waps1 = waps1[waps1['wap'].isin(wap_filter)].copy()
+
+    if isinstance(permit_filter, list):
+        waps1 = waps1[waps1['permit_id'].isin(permit_filter)].copy()
+
     ### permits
     permit_cols = ['permit_id', 'hydro_feature', 'permit_status', 'from_date', 'to_date', 'use_type', 'max_rate', 'max_daily_volume', 'max_annual_volume']
 
