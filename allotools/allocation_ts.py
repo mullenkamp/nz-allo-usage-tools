@@ -86,8 +86,8 @@ def allo_ts(permits, from_date, to_date, freq, limit_col, remove_months=False):
 
     Parameters
     ----------
-    server : str
-        The server where the Hydro db lays.
+    permits : str
+        The permit data.
     from_date : str
         The start date for the time series.
     to_date: str
@@ -104,7 +104,6 @@ def allo_ts(permits, from_date, to_date, freq, limit_col, remove_months=False):
     Returns
     -------
     Series
-        indexed by crc, take_type, and allo_block
     """
     if freq not in freq_codes:
         raise ValueError('freq must be one of ' + str(freq_codes))

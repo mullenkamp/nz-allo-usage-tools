@@ -10,6 +10,7 @@ import yaml
 import pandas as pd
 import tethys_utils as tu
 from tethysts import Tethys
+from tethysts import utils
 # from multiprocessing.pool import ThreadPool
 
 pd.options.display.max_columns = 10
@@ -34,10 +35,7 @@ def get_permit_data(connection_config, bucket, permits_key):
     """
 
     """
-    s3 = tu.s3_connection(connection_config)
-
-    resp = s3.get_object(Bucket=bucket, Key=permits_key)
-    obj1 = resp['Body'].read()
+    obj1 = utils.get_object_s3(permits_key, connection_config, bucket)
     permits = tu.read_json_zstd(obj1)
 
     return permits

@@ -259,13 +259,15 @@ class AlloUsage(object):
 
         ### Get the necessary data
 
-        freq = self.freq
+        a1 = AlloUsage()
+        a1.permits = self.permits.copy()
+        a1.waps = self.waps.copy()
+        a1.from_date = self.from_date
+        a1.to_date = self.to_date
 
-        allo_use1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+        allo_use1 = a1.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 
         permits = self.permits.copy()
-
-        self.freq = freq
 
         ### Create Wap locations
         waps1 = vector.xy_to_gpd('wap', 'lon', 'lat', self.waps.drop('permit_id', axis=1).drop_duplicates('wap'), 4326)
@@ -486,7 +488,7 @@ class AlloUsage(object):
             all1.append(usage_est)
 
         if 'A' in freq_agg:
-            all2 = tu.grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg).sum().reset_index()
+            all2 = tu.grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg, 'sum').reset_index()
         else:
             all2 = pd.concat(all1, axis=1).reset_index()
 
