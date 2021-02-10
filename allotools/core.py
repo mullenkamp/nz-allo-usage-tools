@@ -87,7 +87,6 @@ class AlloUsage(object):
         with all of the base sites, allo, and allo_wap DataFrames
 
     """
-
     dataset_types = dataset_types
     # plot_group = pg
     # plot_stacked = ps
@@ -262,8 +261,8 @@ class AlloUsage(object):
         a1 = AlloUsage()
         a1.permits = self.permits.copy()
         a1.waps = self.waps.copy()
-        a1.from_date = self.from_date
-        a1.to_date = self.to_date
+        # a1.from_date = self.from_date
+        # a1.to_date = self.to_date
 
         allo_use1 = a1.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 
@@ -344,9 +343,10 @@ class AlloUsage(object):
         else:
             usage_daily_rate1 = allo_use_mis6.set_index(['permit_id', 'wap', 'date'])
 
-        setattr(self, 'usage_est', usage_daily_rate1)
+        usage_daily_rate2 = usage_daily_rate1.loc[slice(None), slice(None), self.from_date:self.to_date]
+        setattr(self, 'usage_est', usage_daily_rate2)
 
-        return usage_daily_rate1
+        return usage_daily_rate2
 
 
     def _split_usage_ts(self, usage_allo_ratio=2):
