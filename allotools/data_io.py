@@ -48,64 +48,34 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     remote = [{'bucket': bucket, 'connection_config': connection_config}]
     t1 = Tethys(remote)
 
+    usage_ds = [ds for ds in t1.datasets if (ds['parameter'] == 'water_use') and (ds['product_code'] == 'raw_data') and (ds['frequency_interval'] == '24H') and (ds['utc_offset'] == '12H') and (ds['method'] == 'sensor_recording')]
+
     stns_all = []
 
-    ## Surface Water
-    sw_ds = [ds for ds in t1.datasets if ds['feature'] == 'waterway'][0]
-    sw_ds_id = sw_ds['dataset_id']
-    sw_stns = t1.get_stations(sw_ds_id)
-    sw_stns1 = [s for s in sw_stns if s['ref'] in waps]
+    for ds in usage_ds:
+        stns1 = t1.get_stations(ds['dataset_id'])
+        stns_all.extend([s for s in stns1 if s['ref'] in waps])
 
-    if sw_stns1:
-        sw_waps = [s['station_id'] for s in sw_stns1]
+    if stns_all:
+        stns_dict = {s['dataset_id']: [] for s in stns_all}
+        s = [stns_dict[s['dataset_id']].extend([s['station_id']]) for s in stns_all]
+        for ds, stns in stns_dict.items():
+            data = t1.get_bulk_results(ds, stns, from_date=from_date, to_date=to_date, output='Dataset', remove_height=True, threads=threads)
 
-        sw_data = t1.get_bulk_results(sw_ds_id, sw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=threads)
+            data_list = []
+            for k, val in data.items():
+                wap_id = str(val['ref'].values)
+                val2 = val['water_use'].to_dataframe().reset_index()
+                val2['wap'] = wap_id
+                data_list.append(val2)
 
-        sw_data_list = []
-        for k, val in sw_data.items():
-            val1 = val.squeeze('height').drop_vars('height')
-            wap_id = str(val1['ref'].values)
-            val2 = val1['water_use'].to_dataframe().reset_index()
-            val2['wap'] = wap_id
-            sw_data_list.append(val2)
-
-        sw_data2 = pd.concat(sw_data_list)
-
-        stns_all.extend(sw_stns1)
-
+        data2 = pd.concat(data_list)
     else:
-        sw_data2 = pd.DataFrame(columns=['time', 'wap', 'water_use'])
+        raise ValueError('No water use data found. Check parameters.')
 
-    ## Groundwater
-    gw_ds = [ds for ds in t1.datasets if ds['feature'] == 'groundwater'][0]
-    gw_ds_id = gw_ds['dataset_id']
-    gw_stns = t1.get_stations(gw_ds_id)
-    gw_stns1 = [s for s in gw_stns if s['ref'] in waps]
+    data2['time'] = data2['time'] + pd.DateOffset(hours=12)
 
-    if gw_stns1:
-        gw_waps = [s['station_id'] for s in gw_stns1]
-
-        gw_data = t1.get_bulk_results(gw_ds_id, gw_waps, from_date=from_date, to_date=to_date, output='Dataset', threads=30)
-
-        gw_data_list = []
-        for k, val in gw_data.items():
-            val1 = val.squeeze('height').drop_vars('height')
-            wap_id = str(val1['ref'].values)
-            val2 = val1['water_use'].to_dataframe().reset_index()
-            val2['wap'] = wap_id
-            gw_data_list.append(val2)
-
-        gw_data2 = pd.concat(gw_data_list)
-
-        stns_all.extend(gw_stns1)
-
-    else:
-        gw_data2 = pd.DataFrame(columns=['time', 'wap', 'water_use'])
-
-    all_data = pd.concat([sw_data2, gw_data2])
-    all_data['time'] = all_data['time'] + pd.DateOffset(hours=12)
-
-    return all_data, stns_all
+    return data2, stns_all
 
 
 def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
