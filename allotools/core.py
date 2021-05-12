@@ -10,7 +10,7 @@ import pandas as pd
 import yaml
 from allotools.data_io import get_permit_data, get_usage_data, allo_filter
 from allotools.allocation_ts import allo_ts
-import tethys_utils as tu
+from allotools.utils import grp_ts_agg
 # from allotools.plot import plot_group as pg
 # from allotools.plot import plot_stacked as ps
 from datetime import datetime
@@ -245,7 +245,7 @@ class AlloUsage(object):
             setattr(self, 'waps_only', stns_waps1)
 
         ### Aggregate
-        tsdata2 = tu.grp_ts_agg(tsdata1, 'wap', 'date', self.freq, 'sum')
+        tsdata2 = grp_ts_agg(tsdata1, 'wap', 'date', self.freq, 'sum')
 
         setattr(self, 'usage_ts', tsdata2)
 
@@ -488,7 +488,7 @@ class AlloUsage(object):
             all1.append(usage_est)
 
         if 'A' in freq_agg:
-            all2 = tu.grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg, 'sum').reset_index()
+            all2 = grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg, 'sum').reset_index()
         else:
             all2 = pd.concat(all1, axis=1).reset_index()
 

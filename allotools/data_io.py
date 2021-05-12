@@ -8,7 +8,6 @@ import io
 import os
 import yaml
 import pandas as pd
-import tethys_utils as tu
 from tethysts import Tethys
 from tethysts import utils
 # from multiprocessing.pool import ThreadPool
@@ -36,7 +35,7 @@ def get_permit_data(connection_config, bucket, permits_key):
 
     """
     obj1 = utils.get_object_s3(permits_key, connection_config, bucket)
-    permits = tu.read_json_zstd(obj1)
+    permits = utils.read_json_zstd(obj1)
 
     return permits
 
@@ -59,15 +58,14 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     if stns_all:
         stns_dict = {s['dataset_id']: [] for s in stns_all}
         s = [stns_dict[s['dataset_id']].extend([s['station_id']]) for s in stns_all]
-        for ds, stns in stns_dict.items():
-            data = t1.get_bulk_results(ds, stns, from_date=from_date, to_date=to_date, output='Dataset', remove_height=True, threads=threads)
 
-            data_list = []
-            for k, val in data.items():
-                wap_id = str(val['ref'].values)
-                val2 = val['water_use'].to_dataframe().reset_index()
-                val2['wap'] = wap_id
-                data_list.append(val2)
+        data_list = []
+        for ds, stns in stns_dict.items():
+            data = t1.get_bulk_results(ds, stns, from_date=from_date, to_date=to_date, output='Dataset', squeeze_dims=True, threads=threads)
+
+            val2 = data[['water_use', 'ref']].drop('height').to_dataframe().reset_index()
+            val2 = val2.drop('geometry', axis=1).rename(columns={'ref': 'wap'}).dropna()
+            data_list.append(val2)
 
         data2 = pd.concat(data_list)
     else:
