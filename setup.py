@@ -10,7 +10,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 name = 'nz-allo-usage-tools'
 main_package = 'allotools'
 # datasets = 'datasets'
-version = '0.1.0'
+version = '0.1.1'
 descrip = 'Functions to process and analyse NZ allocation and usage data'
 
 # The below code is for readthedocs. To have sphinx/readthedocs interact with
