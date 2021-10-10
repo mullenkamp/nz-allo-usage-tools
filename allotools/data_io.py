@@ -109,7 +109,7 @@ def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, 
     for p in permits_dict:
         if p['exercised']:
             if p['activity']['activity_type'] == 'consumptive take water':
-                p1 = {'permit_id': p['permit_id'], 'hydro_feature': p['activity']['hydro_feature'], 'permit_status': p['status'], 'use_type': p['activity']['primary_purpose'], 'max_rate': p['activity']['condition'][0]['limit'][0]['value'], 'from_date': p['commencement_date']}
+                p1 = {'permit_id': p['permit_id'], 'hydro_feature': p['activity']['feature'], 'permit_status': p['status'], 'use_type': p['activity']['primary_purpose'], 'max_rate': p['activity']['condition'][0]['limit'][0]['value'], 'from_date': p['commencement_date']}
 
                 if 'effective_end_date' in p:
                     p1.update({'to_date': p['effective_end_date']})
