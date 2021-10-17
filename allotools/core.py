@@ -14,6 +14,7 @@ from allotools.utils import grp_ts_agg
 # from allotools.plot import plot_group as pg
 # from allotools.plot import plot_stacked as ps
 from datetime import datetime
+# from scipy.special import erfc
 
 # from matplotlib.pyplot import show
 
@@ -171,17 +172,11 @@ class AlloUsage(object):
         allo6['combo_wap_allo'] = allo6.groupby(['permit_id', 'hydro_feature', 'date'])['total_allo'].transform('sum')
         allo6['combo_wap_ratio'] = allo6['total_allo']/allo6['combo_wap_allo']
 
-        # allo6['rate_wap_tot'] = allo6.groupby(['permit_id', 'hydro_feature', 'date'])['wap_max_rate'].transform('sum')
-        # allo6['rate_wap_ratio'] = allo6['wap_max_rate']/allo6['rate_wap_tot']
-
         allo6['wap_allo'] = allo6['total_allo'] * allo6['combo_wap_ratio']
-
-        # allo6.loc[allo6.rate_wap_ratio.notnull(), 'wap_allo'] = allo6.loc[allo6.rate_wap_ratio.notnull(), 'rate_wap_ratio'] * allo6.loc[allo6.rate_wap_ratio.notnull(), 'total_allo']
-
-        # allo7 = allo6.drop(['combo_wap_allo', 'combo_wap_ratio', 'rate_wap_tot', 'rate_wap_ratio', 'wap_max_rate', 'total_allo'], axis=1).rename(columns={'wap_allo': 'total_allo'}).copy()
 
         allo7 = allo6.drop(['combo_wap_allo', 'combo_wap_ratio', 'total_allo'], axis=1).rename(columns={'wap_allo': 'total_allo'}).copy()
 
+        ## Calculate the stream depletion
         allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'groundwater'), 'sd_ratio'] = 0
         allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'surface water'), 'sd_ratio'] = 1
 
@@ -309,6 +304,7 @@ class AlloUsage(object):
         allo_use_mis4 = allo_use_mis3.groupby(['permit_id', 'wap', 'date'])['usage_allo'].mean().reset_index()
 
         allo_use_mis5 = pd.merge(allo_use_mis4, allo_use_mis1[['permit_id', 'wap', 'date', 'total_allo', 'sw_allo', 'gw_allo']], on=['permit_id', 'wap', 'date'])
+
         allo_use_mis5['total_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['total_allo']).round()
         allo_use_mis5['sw_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['sw_allo']).round()
         allo_use_mis5['gw_usage_est'] = allo_use_mis5['total_usage_est'] - allo_use_mis5['sw_usage_est']
@@ -374,7 +370,6 @@ class AlloUsage(object):
 
         ### Split the GW and SW components
         usage1['sw_ratio'] = usage1['sw_allo']/usage1['total_allo']
-
         usage1['sw_usage'] = usage1['sw_ratio'] * usage1['total_usage']
         usage1['gw_usage'] = usage1['total_usage'] - usage1['sw_usage']
         usage1.loc[usage1['gw_usage'] < 0, 'gw_usage'] = 0
