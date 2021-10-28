@@ -76,7 +76,7 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
     return data2, stns_all
 
 
-def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+def allo_filter(permits_list, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
     """
     Function to filter consents and WAPs in various ways.
 
@@ -106,7 +106,7 @@ def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, 
     waps0 = []
     permits0 = []
 
-    for p in permits_dict:
+    for p in permits_list:
         if p['exercised']:
             if p['activity']['activity_type'] == 'consumptive take water':
                 p1 = {'permit_id': p['permit_id'], 'hydro_feature': p['activity']['feature'], 'permit_status': p['status'], 'use_type': p['activity']['primary_purpose'], 'max_rate': p['activity']['condition'][0]['limit'][0]['value'], 'from_date': p['commencement_date']}
@@ -120,8 +120,9 @@ def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, 
 
                 for s in p['activity']['station']:
                     w1 = {'permit_id': p['permit_id'], 'wap': s['ref'], 'lat': s['geometry']['coordinates'][1], 'lon': s['geometry']['coordinates'][0]}
-                    if 'stream_depletion_ratio' in s:
-                        w1.update({'sd_ratio': s['stream_depletion_ratio']})
+                    if 'properties' in s:
+                        if s['properties']:
+                            w1.update(**s['properties'])
                     waps0.extend([w1])
 
     waps = pd.DataFrame(waps0)
@@ -134,19 +135,19 @@ def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, 
     permits['max_annual_volume'] = permits['max_rate'] *60*60*24*365*0.001
 
     ### Waps
-    waps_cols = ['permit_id', 'wap', 'lon', 'lat', 'sd_ratio']
-    waps1 = waps[waps_cols].copy()
+    # waps_cols = ['permit_id', 'wap', 'lon', 'lat', 'sd_ratio']
+    # waps1 = waps[waps_cols].copy()
 
     if isinstance(wap_filter, dict):
-        waps_bool1 = [waps1[k].isin(v) for k, v in wap_filter.items()]
+        waps_bool1 = [waps[k].isin(v) for k, v in wap_filter.items()]
         waps_bool2 = pd.concat(waps_bool1, axis=1).prod(axis=1).astype(bool)
-        waps1 = waps1[waps_bool2].copy()
+        waps = waps[waps_bool2].copy()
 
     if isinstance(wap_filter, list):
-        waps1 = waps1[waps1['wap'].isin(wap_filter)].copy()
+        waps = waps[waps['wap'].isin(wap_filter)].copy()
 
     if isinstance(permit_filter, list):
-        waps1 = waps1[waps1['permit_id'].isin(permit_filter)].copy()
+        waps = waps[waps['permit_id'].isin(permit_filter)].copy()
 
     ### permits
     permit_cols = ['permit_id', 'hydro_feature', 'permit_status', 'from_date', 'to_date', 'use_type', 'max_rate', 'max_daily_volume', 'max_annual_volume']
@@ -169,7 +170,7 @@ def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, 
 
     permits1 = permits1.loc[bool1].copy()
 
-    permits2 = permits1[permits1.permit_id.isin(waps1.permit_id.unique())].copy()
+    permits2 = permits1[permits1.permit_id.isin(waps.permit_id.unique())].copy()
     permits2['from_date'] = pd.to_datetime(permits2['from_date'])
     permits2['to_date'] = pd.to_datetime(permits2['to_date'])
 
@@ -216,8 +217,8 @@ def allo_filter(permits_dict, from_date=None, to_date=None, permit_filter=None, 
     ### Filter
     # sd2 = sd1[(sd1.permit_id.isin(permits3.permit_id.unique())) & (sd1.wap.isin(waps1.wap.unique()))].copy()
 
-    permits5 = permits4[permits4.permit_id.isin(waps1.permit_id.unique())].copy()
-    waps2 = waps1[waps1.permit_id.isin(permits5.permit_id.unique())].copy()
+    permits5 = permits4[permits4.permit_id.isin(waps.permit_id.unique())].copy()
+    waps2 = waps[waps.permit_id.isin(permits5.permit_id.unique())].copy()
 
     ### Index the DataFrames
     # permit_id_allo2.set_index(['permit_id', 'hydro_group'], inplace=True)

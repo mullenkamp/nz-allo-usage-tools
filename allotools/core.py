@@ -8,12 +8,15 @@ import os
 import numpy as np
 import pandas as pd
 import yaml
-from allotools.data_io import get_permit_data, get_usage_data, allo_filter
+from data_io import get_permit_data, get_usage_data, allo_filter
+# from allotools.data_io import get_permit_data, get_usage_data, allo_filter
 from allotools.allocation_ts import allo_ts
 from allotools.utils import grp_ts_agg
 # from allotools.plot import plot_group as pg
 # from allotools.plot import plot_stacked as ps
 from datetime import datetime
+from nz_stream_depletion import SD
+from tethys_data_models import permit
 # from scipy.special import erfc
 
 # from matplotlib.pyplot import show
@@ -139,6 +142,9 @@ class AlloUsage(object):
         setattr(self, 'from_date', from_date1)
         setattr(self, 'to_date', to_date1)
 
+        ## Recalculate the ratios
+        self._calc_sd_ratios()
+
 
     def _est_allo_ts(self):
         """
@@ -162,6 +168,67 @@ class AlloUsage(object):
         setattr(self, 'total_allo_ts', allo4.reset_index())
 
 
+    @staticmethod
+    def _prep_aquifer_data(series, all_params):
+        """
+
+        """
+        v1 = series.dropna().to_dict()
+        v2 = permit.AquiferProp(**{k: v for k, v in v1.items() if k in all_params}).dict(exclude_none=True)
+
+        return v2
+
+
+    def _calc_sd_ratios(self):
+        """
+
+        """
+        waps1 = self.waps.dropna(subset=['method']).set_index(['permit_id', 'wap']).copy()
+
+        sd = SD()
+
+        all_params = set()
+
+        _ = [all_params.update(p) for p in sd.all_methods.values()]
+
+        sd_list = []
+
+        for i, v in waps1.iterrows():
+            # if i[1] == 'F44/0193':
+            #     break
+            # print(i)
+            method = v['method']
+            if method in sd.all_methods:
+                v2 = self._prep_aquifer_data(v, all_params)
+                n_days = int(v['n_days'])
+
+                avail = sd.load_aquifer_data(**v2)
+
+                if len(avail) > 0:
+
+                    if method in avail:
+                        sd_ratio1 = sd.calc_sd_ratio(n_days, method)
+                    else:
+                        sd_ratio1 = sd.calc_sd_ratio(n_days)
+
+                    d1 = list(i)
+                    d1.extend([round(sd_ratio1, 3)])
+
+                    sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
+                    sd_list.append(sd_ratio2)
+            elif 'stream_depletion_ratio' in v:
+                d1 = list(i)
+                d1.extend([round(v['stream_depletion_ratio'], 3)])
+                sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
+                sd_list.append(sd_ratio2)
+
+        sd_ratios = pd.concat(sd_list)
+
+        waps2 = pd.merge(self.waps, sd_ratios, on=['permit_id', 'wap'], how='left')
+
+        setattr(self, 'waps', waps2)
+
+
     def _allo_wap_spit(self):
         """
 
@@ -177,11 +244,41 @@ class AlloUsage(object):
         allo7 = allo6.drop(['combo_wap_allo', 'combo_wap_ratio', 'total_allo'], axis=1).rename(columns={'wap_allo': 'total_allo'}).copy()
 
         ## Calculate the stream depletion
+        # gw_allo_sd = allo7[allo7.sd_ratio.notnull()].copy()
+
+        # grp_sd = gw_allo_sd.groupby(['permit_id', 'hydro_feature', 'wap'])
+
+        # sd = SD()
+
+        # all_params = set()
+
+        # _ = [all_params.update(p) for p in sd.all_methods.values()]
+
+        # for i, v in grp_sd:
+        #     # print(i)
+        #     wap = i[2]
+        #     v1 = v[['date', 'total_allo']].set_index('date').total_allo
+        #     wap_series = self.waps[self.waps.wap == wap].iloc[0]
+
+        #     params = self._prep_aquifer_data(wap_series, all_params)
+        #     avail = sd.load_aquifer_data(**params)
+
+        #     if 'method' in v:
+        #         method = wap_series['method']
+        #         if method in avail:
+        #             allo0 = sd.calc_sd_extraction(v1, method)
+        #         else:
+        #             allo0 = sd.calc_sd_extraction(v1)
+        #     else:
+        #         allo0 = sd.calc_sd_extraction(v1)
+
+
         allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'groundwater'), 'sd_ratio'] = 0
         allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'surface water'), 'sd_ratio'] = 1
 
         allo7['sw_allo'] = allo7['total_allo'] * allo7['sd_ratio']
-        allo7['gw_allo'] = allo7['total_allo'] - allo7['sw_allo']
+        allo7['gw_allo'] = allo7['total_allo']
+        allo7.loc[allo7['hydro_feature'] == 'surface water', 'gw_allo'] = 0
 
         allo8 = allo7.drop(['hydro_feature', 'sd_ratio'], axis=1).groupby(pk).mean()
 
@@ -306,10 +403,10 @@ class AlloUsage(object):
         allo_use_mis5 = pd.merge(allo_use_mis4, allo_use_mis1[['permit_id', 'wap', 'date', 'total_allo', 'sw_allo', 'gw_allo']], on=['permit_id', 'wap', 'date'])
 
         allo_use_mis5['total_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['total_allo']).round()
-        allo_use_mis5['sw_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['sw_allo']).round()
-        allo_use_mis5['gw_usage_est'] = allo_use_mis5['total_usage_est'] - allo_use_mis5['sw_usage_est']
+        allo_use_mis5['sw_allo_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['sw_allo']).round()
+        allo_use_mis5['gw_allo_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['gw_allo']).round()
 
-        allo_use_mis6 = allo_use_mis5[['permit_id', 'wap', 'date', 'total_usage_est', 'sw_usage_est', 'gw_usage_est']].copy()
+        allo_use_mis6 = allo_use_mis5[['permit_id', 'wap', 'date', 'total_usage_est', 'sw_allo_usage_est', 'gw_allo_usage_est']].copy()
 
         ### Convert to daily if required
         if self.freq == 'D':
@@ -317,8 +414,8 @@ class AlloUsage(object):
             days2 = pd.to_timedelta((days1/2).round().astype('int32'), unit='D')
 
             allo_use_mis6['total_usage_est'] = allo_use_mis6['total_usage_est'] / days1
-            allo_use_mis6['sw_usage_est'] = allo_use_mis6['sw_usage_est'] / days1
-            allo_use_mis6['gw_usage_est'] = allo_use_mis6['gw_usage_est'] / days1
+            allo_use_mis6['sw_allo_usage_est'] = allo_use_mis6['sw_allo_usage_est'] / days1
+            allo_use_mis6['gw_allo_usage_est'] = allo_use_mis6['gw_allo_usage_est'] / days1
 
             usage_rate0 = allo_use_mis6.copy()
 
@@ -334,7 +431,7 @@ class AlloUsage(object):
 
             usage_rate1.set_index('date', inplace=True)
 
-            usage_daily_rate1 = usage_rate1.groupby(['permit_id', 'wap']).apply(lambda x: x.resample('D').interpolate(method='pchip')[['total_usage_est', 'sw_usage_est', 'gw_usage_est']]).round(2)
+            usage_daily_rate1 = usage_rate1.groupby(['permit_id', 'wap']).apply(lambda x: x.resample('D').interpolate(method='pchip')[['total_usage_est', 'sw_allo_usage_est', 'gw_allo_usage_est']]).round(2)
 
         else:
             usage_daily_rate1 = allo_use_mis6.set_index(['permit_id', 'wap', 'date'])
@@ -343,6 +440,9 @@ class AlloUsage(object):
         setattr(self, 'usage_est', usage_daily_rate2)
 
         return usage_daily_rate2
+
+
+    # def _calc_sd_rates()
 
 
     def _split_usage_ts(self, usage_allo_ratio=2):
@@ -370,11 +470,14 @@ class AlloUsage(object):
 
         ### Split the GW and SW components
         usage1['sw_ratio'] = usage1['sw_allo']/usage1['total_allo']
-        usage1['sw_usage'] = usage1['sw_ratio'] * usage1['total_usage']
-        usage1['gw_usage'] = usage1['total_usage'] - usage1['sw_usage']
-        usage1.loc[usage1['gw_usage'] < 0, 'gw_usage'] = 0
+        usage1['gw_ratio'] = usage1['gw_allo']/usage1['total_allo']
+        usage1['sw_allo_usage'] = usage1['sw_ratio'] * usage1['total_usage']
+        usage1['gw_allo_usage'] = usage1['gw_ratio'] * usage1['total_usage']
+        usage1.loc[usage1['gw_allo_usage'] < 0, 'gw_allo_usage'] = 0
 
-        usage1.drop(['sw_allo', 'gw_allo', 'total_allo', 'combo_allo', 'combo_ratio', 'sw_ratio'], axis=1, inplace=True)
+        ### Remove other columns
+        usage1.drop(['sw_allo', 'gw_allo', 'total_allo', 'combo_allo', 'combo_ratio', 'sw_ratio', 'gw_ratio'], axis=1, inplace=True)
+        # usage1.drop(['sw_allo', 'gw_allo', 'total_allo', 'combo_allo', 'combo_ratio'], axis=1, inplace=True)
 
         usage2 = usage1.dropna().groupby(pk).mean()
 

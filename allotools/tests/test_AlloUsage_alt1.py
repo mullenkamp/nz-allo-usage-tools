@@ -56,7 +56,7 @@ a1.plot_group('A-JUN', val='total', group='crc', with_restr=False, export_path=e
 a1.plot_stacked('A-JUN', val='total', export_path=r'E:\ecan\local\Projects\requests\suz\2018-12-17\plots')
 
 
-
+self = AlloUsage()
 
 
 
