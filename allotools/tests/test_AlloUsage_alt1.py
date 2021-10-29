@@ -23,11 +23,13 @@ from_date = '2015-07-01'
 to_date = '2018-06-30'
 
 datasets = ['allo', 'restr_allo', 'metered_allo', 'metered_restr_allo', 'usage']
-datasets = ['allo', 'metered_allo', 'usage']
+datasets = ['allo', 'metered_allo', 'usage', 'usage_est', 'sd_rates']
 
 freq = 'A-JUN'
+freq = 'M'
 
 cols = ['crc', 'wap', 'date']
+cols = ['permit_id', 'wap']
 
 export_path = r'E:\ecan\local\Projects\requests\Ilja\2019-02-26'
 export1 = 'test_crcs_{}.csv'.format(date2)
@@ -45,9 +47,11 @@ test_crc = pd.read_csv(test_sites_csv).crc.unique().tolist()
 #
 #site_filter = {'SwazName': sites1.SwazName.unique().tolist()}
 
+a1 = AlloUsage()
+
 a1 = AlloUsage(from_date, to_date, crc_filter={'crc': test_crc})
 
-ts1 = a1.get_ts(datasets, freq, cols, usage_allo_ratio=10).round()
+ts1 = a1.get_ts(datasets, freq, cols, usage_allo_ratio=2)
 
 ts1.to_csv(os.path.join(export_path, export1))
 

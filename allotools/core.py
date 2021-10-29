@@ -30,7 +30,7 @@ with open(os.path.join(base_path, 'parameters.yml')) as param:
     param = yaml.safe_load(param)
 
 pk = ['permit_id', 'wap', 'date']
-dataset_types = ['allo', 'metered_allo',  'usage', 'usage_est']
+dataset_types = ['allo', 'metered_allo',  'usage', 'usage_est', 'sd_rates']
 allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_annual_volume', 'A-JUN': 'max_annual_volume', 'A': 'max_annual_volume'}
 # allo_mult_dict = {'D': 0.001*24*60*60, 'W': 0.001*24*60*60*7, 'M': 0.001*24*60*60*30, 'A-JUN': 0.001*24*60*60*365, 'A': 0.001*24*60*60*365}
 temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered_allo_ts']
@@ -183,7 +183,7 @@ class AlloUsage(object):
         """
 
         """
-        waps1 = self.waps.dropna(subset=['method']).set_index(['permit_id', 'wap']).copy()
+        waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s', 'stream_depletion_ratio'], how='all').set_index(['permit_id', 'wap']).copy()
 
         sd = SD()
 
@@ -197,30 +197,31 @@ class AlloUsage(object):
             # if i[1] == 'F44/0193':
             #     break
             # print(i)
-            method = v['method']
-            if method in sd.all_methods:
+
+            if np.isnan(v['sep_distance']) or np.isnan(v['pump_aq_trans']) or np.isnan(v['pump_aq_s']):
+                if 'stream_depletion_ratio' in v:
+                    d1 = list(i)
+                    d1.extend([round(v['stream_depletion_ratio'], 3)])
+                    sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
+                    sd_list.append(sd_ratio2)
+            else:
                 v2 = self._prep_aquifer_data(v, all_params)
                 n_days = int(v['n_days'])
+                method = v['method']
 
                 avail = sd.load_aquifer_data(**v2)
 
-                if len(avail) > 0:
+                if method in avail:
+                    sd_ratio1 = sd.calc_sd_ratio(n_days, method)
+                else:
+                    sd_ratio1 = sd.calc_sd_ratio(n_days)
 
-                    if method in avail:
-                        sd_ratio1 = sd.calc_sd_ratio(n_days, method)
-                    else:
-                        sd_ratio1 = sd.calc_sd_ratio(n_days)
-
-                    d1 = list(i)
-                    d1.extend([round(sd_ratio1, 3)])
-
-                    sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
-                    sd_list.append(sd_ratio2)
-            elif 'stream_depletion_ratio' in v:
                 d1 = list(i)
-                d1.extend([round(v['stream_depletion_ratio'], 3)])
+                d1.extend([round(sd_ratio1, 3)])
+
                 sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
                 sd_list.append(sd_ratio2)
+
 
         sd_ratios = pd.concat(sd_list)
 
@@ -442,7 +443,62 @@ class AlloUsage(object):
         return usage_daily_rate2
 
 
-    # def _calc_sd_rates()
+    def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+        """
+
+        """
+        old_freq = self.freq
+        self.freq = 'D'
+        usage_est = self._usage_estimation(usage_allo_ratio, buffer_dis, min_months)
+        self.freq = old_freq
+
+        usage_index = usage_est.index.droplevel(2).unique()
+
+        # if not hasattr(self, 'usage_est'):
+        #     usage_est = self._usage_estimation(usage_allo_ratio, buffer_dis, min_months)
+        # else:
+        #     usage_est = self.usage_est
+
+        waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s']).set_index(['permit_id', 'wap']).copy()
+
+        sd = SD()
+
+        all_params = set()
+
+        _ = [all_params.update(p) for p in sd.all_methods.values()]
+
+        sd_list = []
+
+        for i, v in waps1.iterrows():
+            if i in usage_index:
+                use1 = usage_est.loc[i, 'total_usage_est']
+
+                v2 = self._prep_aquifer_data(v, all_params)
+                # n_days = int(v['n_days'])
+                method = v['method']
+
+                avail = sd.load_aquifer_data(**v2)
+
+                if method in avail:
+                    sd_rates1 = sd.calc_sd_extraction(use1, method)
+                else:
+                    sd_rates1 = sd.calc_sd_extraction(use1)
+
+                sd_rates1.name = 'sd_rate'
+
+                sd_rates1 = sd_rates1.reset_index()
+                sd_rates1['permit_id'] = i[0]
+                sd_rates1['wap'] = i[1]
+
+                sd_list.append(sd_rates1)
+
+        sd_rates2 = pd.concat(sd_list)
+
+        sd_rates3 = sd_rates2.groupby(pk).mean()
+
+        setattr(self, 'sd_rates', sd_rates3)
+
+        return sd_rates3
 
 
     def _split_usage_ts(self, usage_allo_ratio=2):
@@ -584,6 +640,9 @@ class AlloUsage(object):
         if 'usage_est' in datasets:
             usage_est = self._usage_estimation(usage_allo_ratio, buffer_dis, min_months)
             all1.append(usage_est)
+        if 'sd_rates' in datasets:
+            sd_rates = self._calc_sd_rates(usage_allo_ratio, buffer_dis, min_months)
+            all1.append(sd_rates)
 
         if 'A' in freq_agg:
             all2 = grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg, 'sum').reset_index()
