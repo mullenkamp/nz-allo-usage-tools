@@ -27,6 +27,7 @@ datasets = ['allo', 'metered_allo', 'usage', 'usage_est', 'sd_rates']
 
 freq = 'A-JUN'
 freq = 'M'
+freq = 'D'
 
 cols = ['crc', 'wap', 'date']
 cols = ['permit_id', 'wap']
@@ -57,7 +58,7 @@ ts1.to_csv(os.path.join(export_path, export1))
 
 a1.plot_group('A-JUN', val='total', group='crc', with_restr=False, export_path=export_path)
 
-a1.plot_stacked('A-JUN', val='total', export_path=r'E:\ecan\local\Projects\requests\suz\2018-12-17\plots')
+# a1.plot_stacked('A-JUN', val='total', export_path=r'E:\ecan\local\Projects\requests\suz\2018-12-17\plots')
 
 
 self = AlloUsage()

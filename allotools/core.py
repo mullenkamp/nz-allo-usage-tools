@@ -146,16 +146,13 @@ class AlloUsage(object):
         self._calc_sd_ratios()
 
 
-    def _est_allo_ts(self):
+    def _est_allo_ts(self, freq):
         """
 
         """
         ### Run the allocation time series creation
-        ### This has currently been hard-soded to only use the max rate. This should probably be changed once the permitting data gets fixed.
-        limit_col = allo_type_dict[self.freq]
-        # multiplier = allo_mult_dict[self.freq]
-        # limit_col = 'max_rate'
-        allo4 = allo_ts(self.permits, self.from_date, self.to_date, self.freq, limit_col).round()
+        limit_col = allo_type_dict[freq]
+        allo4 = allo_ts(self.permits, self.from_date, self.to_date, freq, limit_col).round()
         allo4.name = 'total_allo'
 
         # allo4 = (allo4 * multiplier).round()
@@ -286,64 +283,73 @@ class AlloUsage(object):
         setattr(self, 'wap_allo_ts', allo8)
 
 
-    def _get_allo_ts(self):
+    def _get_allo_ts(self, freq):
         """
         Function to create an allocation time series.
 
         """
-        if not hasattr(self, 'total_allo_ts'):
-            self._est_allo_ts()
+        # if not hasattr(self, 'total_allo_ts'):
+        #     self._est_allo_ts(freq)
+
+        self._est_allo_ts(freq)
 
         ### Convert to GW and SW allocation
 
         self._allo_wap_spit()
 
 
-    def _process_usage(self):
+    def _get_usage(self, freq):
         """
 
         """
-        if not hasattr(self, 'wap_allo_ts'):
-            self._get_allo_ts()
+        # if not hasattr(self, 'wap_allo_ts'):
+        #     self._get_allo_ts(freq)
+
+        self._get_allo_ts(freq)
         allo1 = self.wap_allo_ts.copy().reset_index()
 
         waps = allo1.wap.unique().tolist()
 
-        ## Get the ts data and aggregate
-        if hasattr(self, 'usage_ts_daily'):
-            tsdata1 = self.usage_ts_daily
-        else:
-            tsdata1, stns_waps = get_usage_data(self._usage_remote['connection_config'], self._usage_remote['bucket'], waps, self.from_date, self.to_date)
-            tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
+        tsdata1, stns_waps = get_usage_data(self._usage_remote['connection_config'], self._usage_remote['bucket'], waps, self.from_date, self.to_date)
+        tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
 
-            tsdata1 = tsdata1[['wap', 'date', 'total_usage']].copy()
+        tsdata1 = tsdata1[['wap', 'date', 'total_usage']].copy()
 
-            ## filter - remove individual spikes and negative values
-            tsdata1.loc[tsdata1['total_usage'] < 0, 'total_usage'] = 0
+        ## filter - remove individual spikes and negative values
+        tsdata1.loc[tsdata1['total_usage'] < 0, 'total_usage'] = 0
 
-            def remove_spikes(x):
-                val1 = bool(x[1] > (x[0] + x[2] + 2))
-                if val1:
-                    return (x[0] + x[2])/2
-                else:
-                    return x[1]
+        def remove_spikes(x):
+            val1 = bool(x[1] > (x[0] + x[2] + 2))
+            if val1:
+                return (x[0] + x[2])/2
+            else:
+                return x[1]
 
-            tsdata1.iloc[1:-1, 2] = tsdata1['total_usage'].rolling(3, center=True).apply(remove_spikes, raw=True).iloc[1:-1]
+        tsdata1.iloc[1:-1, 2] = tsdata1['total_usage'].rolling(3, center=True).apply(remove_spikes, raw=True).iloc[1:-1]
 
-            setattr(self, 'usage_ts_daily', tsdata1)
+        setattr(self, 'usage_ts_daily', tsdata1)
 
-            ## Convert station data to DataFrame
-            stns_waps1 = pd.DataFrame([{'wap': s['ref'], 'lon': s['geometry']['coordinates'][0], 'lat': s['geometry']['coordinates'][1]} for s in stns_waps])
+        ## Convert station data to DataFrame
+        stns_waps1 = pd.DataFrame([{'wap': s['ref'], 'lon': s['geometry']['coordinates'][0], 'lat': s['geometry']['coordinates'][1]} for s in stns_waps])
 
-            setattr(self, 'waps_only', stns_waps1)
+        setattr(self, 'waps_only', stns_waps1)
+
+
+    def _agg_usage(self, freq):
+        """
+
+        """
+        if not hasattr(self, 'usage_ts_daily'):
+            self._get_usage(freq)
+        tsdata1 = self.usage_ts_daily
 
         ### Aggregate
-        tsdata2 = grp_ts_agg(tsdata1, 'wap', 'date', self.freq, 'sum')
+        tsdata2 = grp_ts_agg(tsdata1, 'wap', 'date', freq, 'sum')
 
         setattr(self, 'usage_ts', tsdata2)
 
 
-    def _usage_estimation(self, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+    def _usage_estimation(self, freq, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
         """
 
         """
@@ -351,13 +357,16 @@ class AlloUsage(object):
 
         ### Get the necessary data
 
-        a1 = AlloUsage()
-        a1.permits = self.permits.copy()
-        a1.waps = self.waps.copy()
+        # a1 = AlloUsage()
+        # a1.permits = self.permits.copy()
+        # a1.waps = self.waps.copy()
         # a1.from_date = self.from_date
         # a1.to_date = self.to_date
 
-        allo_use1 = a1.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+        # if hasattr(self, 'total_allo_ts'):
+        #     delattr(self, 'total_allo_ts')
+
+        allo_use1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
 
         permits = self.permits.copy()
 
@@ -410,7 +419,7 @@ class AlloUsage(object):
         allo_use_mis6 = allo_use_mis5[['permit_id', 'wap', 'date', 'total_usage_est', 'sw_allo_usage_est', 'gw_allo_usage_est']].copy()
 
         ### Convert to daily if required
-        if self.freq == 'D':
+        if freq == 'D':
             days1 = allo_use_mis6.date.dt.daysinmonth
             days2 = pd.to_timedelta((days1/2).round().astype('int32'), unit='D')
 
@@ -447,17 +456,15 @@ class AlloUsage(object):
         """
 
         """
-        old_freq = self.freq
-        self.freq = 'D'
-        usage_est = self._usage_estimation(usage_allo_ratio, buffer_dis, min_months)
-        self.freq = old_freq
+        # if hasattr(self, 'total_allo_ts'):
+        #     delattr(self, 'total_allo_ts')
 
+        usage_est1 = self.get_ts(['usage', 'usage_est'], 'D', ['permit_id', 'wap'])
+        usage_est = usage_est1[['total_usage', 'total_usage_est']].sum(axis=1)
+        usage_est.name = 'sd_rate'
+
+        ## SD groundwater takes
         usage_index = usage_est.index.droplevel(2).unique()
-
-        # if not hasattr(self, 'usage_est'):
-        #     usage_est = self._usage_estimation(usage_allo_ratio, buffer_dis, min_months)
-        # else:
-        #     usage_est = self.usage_est
 
         waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s']).set_index(['permit_id', 'wap']).copy()
 
@@ -471,7 +478,7 @@ class AlloUsage(object):
 
         for i, v in waps1.iterrows():
             if i in usage_index:
-                use1 = usage_est.loc[i, 'total_usage_est']
+                use1 = usage_est.loc[i]
 
                 v2 = self._prep_aquifer_data(v, all_params)
                 # n_days = int(v['n_days'])
@@ -492,26 +499,51 @@ class AlloUsage(object):
 
                 sd_list.append(sd_rates1)
 
+        ## SW takes
+        sw_permits = self.permits[self.permits.hydro_feature == 'surface water'].permit_id.unique()
+        sw_permits_bool = usage_est.index.get_level_values(0).isin(sw_permits)
+
+        sw_usage = usage_est.loc[sw_permits_bool].reset_index()
+
+        sd_list.append(sw_usage)
+
         sd_rates2 = pd.concat(sd_list)
 
         sd_rates3 = sd_rates2.groupby(pk).mean()
 
-        setattr(self, 'sd_rates', sd_rates3)
-
-        return sd_rates3
+        setattr(self, 'sd_rates_daily', sd_rates3)
 
 
-    def _split_usage_ts(self, usage_allo_ratio=2):
+    def _agg_sd_rates(self, freq, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+        """
+
+        """
+        if not hasattr(self, 'sd_rates_daily'):
+            self._calc_sd_rates(usage_allo_ratio, buffer_dis, min_months)
+        tsdata1 = self.sd_rates_daily.reset_index()
+
+        tsdata2 = grp_ts_agg(tsdata1, ['permit_id', 'wap'], 'date', freq, 'sum')
+
+        setattr(self, 'sd_rates', tsdata2)
+
+        return tsdata2
+
+
+    def _split_usage_ts(self, freq, usage_allo_ratio=2):
         """
 
         """
         ### Get the usage data if it exists
-        if not hasattr(self, 'usage_ts'):
-            self._process_usage()
+        # if not hasattr(self, 'usage_ts'):
+        #     self._agg_usage(freq)
+
+        self._agg_usage(freq)
         tsdata2 = self.usage_ts.copy().reset_index()
 
-        if not hasattr(self, 'allo_ts'):
-            allo1 = self._get_allo_ts()
+        # if not hasattr(self, 'allo_ts'):
+        #     self._get_allo_ts(freq)
+
+        self._get_allo_ts(freq)
         allo1 = self.wap_allo_ts.copy().reset_index()
 
         allo1['combo_allo'] = allo1.groupby(['wap', 'date'])['total_allo'].transform('sum')
@@ -540,21 +572,23 @@ class AlloUsage(object):
         setattr(self, 'split_usage_ts', usage2)
 
 
-    def _get_metered_allo_ts(self, proportion_allo=True):
+    def _get_metered_allo_ts(self, freq, proportion_allo=True):
         """
 
         """
         setattr(self, 'proportion_allo', proportion_allo)
 
         ### Get the allocation ts either total or metered
-        if not hasattr(self, 'wap_allo_ts'):
-            self._get_allo_ts()
+        # if not hasattr(self, 'wap_allo_ts'):
+        #     self._get_allo_ts(freq)
+
+        self._get_allo_ts(freq)
         allo1 = self.wap_allo_ts.copy().reset_index()
         rename_dict = {'sw_allo': 'sw_metered_allo', 'gw_allo': 'gw_metered_allo', 'total_allo': 'total_metered_allo'}
 
         ### Combine the usage data to the allo data
         if not hasattr(self, 'split_usage_ts'):
-            self._split_usage_ts()
+            self._split_usage_ts(freq)
         allo2 = pd.merge(self.split_usage_ts.reset_index()[pk], allo1, on=pk, how='right', indicator=True)
 
         ## Re-categorise
@@ -613,15 +647,14 @@ class AlloUsage(object):
         else:
             freq_agg = freq
 
-        if hasattr(self, 'freq'):
-            # if (self.freq != freq) or (self.sd_days != sd_days) or (self.irr_season != irr_season):
-            if (self.freq != freq):
-                for d in temp_datasets:
-                    if hasattr(self, d):
-                        delattr(self, d)
+        # if hasattr(self, 'freq'):
+        #     if (self.freq != freq):
+        #         for d in temp_datasets:
+        #             if hasattr(self, d):
+        #                 delattr(self, d)
 
         ### Assign pararameters
-        setattr(self, 'freq', freq)
+        # setattr(self, 'freq', freq)
         # setattr(self, 'sd_days', sd_days)
         # setattr(self, 'irr_season', irr_season)
 
@@ -629,19 +662,19 @@ class AlloUsage(object):
         all1 = []
 
         if 'allo' in datasets:
-            self._get_allo_ts()
+            self._get_allo_ts(freq)
             all1.append(self.wap_allo_ts)
         if 'metered_allo' in datasets:
-            self._get_metered_allo_ts()
+            self._get_metered_allo_ts(freq)
             all1.append(self.metered_allo_ts)
         if 'usage' in datasets:
-            self._split_usage_ts(usage_allo_ratio)
+            self._split_usage_ts(freq, usage_allo_ratio)
             all1.append(self.split_usage_ts)
         if 'usage_est' in datasets:
-            usage_est = self._usage_estimation(usage_allo_ratio, buffer_dis, min_months)
+            usage_est = self._usage_estimation(freq, usage_allo_ratio, buffer_dis, min_months)
             all1.append(usage_est)
         if 'sd_rates' in datasets:
-            sd_rates = self._calc_sd_rates(usage_allo_ratio, buffer_dis, min_months)
+            sd_rates = self._agg_sd_rates(freq, usage_allo_ratio, buffer_dis, min_months)
             all1.append(sd_rates)
 
         if 'A' in freq_agg:
