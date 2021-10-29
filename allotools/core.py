@@ -8,8 +8,8 @@ import os
 import numpy as np
 import pandas as pd
 import yaml
-from data_io import get_permit_data, get_usage_data, allo_filter
-# from allotools.data_io import get_permit_data, get_usage_data, allo_filter
+# from data_io import get_permit_data, get_usage_data, allo_filter
+from allotools.data_io import get_permit_data, get_usage_data, allo_filter
 from allotools.allocation_ts import allo_ts
 from allotools.utils import grp_ts_agg
 # from allotools.plot import plot_group as pg
