@@ -10,6 +10,7 @@ import yaml
 import pandas as pd
 from tethysts import Tethys
 from tethysts import utils
+import copy
 # from multiprocessing.pool import ThreadPool
 
 pd.options.display.max_columns = 10
@@ -30,22 +31,22 @@ use_type_dict = param['input']['use_type_dict']
 ### Functions
 
 
-def get_permit_data(connection_config, bucket, permits_key):
+def get_permit_data(remote):
     """
 
     """
-    obj1 = utils.get_object_s3(permits_key, connection_config, bucket)
+    obj1 = utils.get_object_s3(**remote)
     permits = utils.read_json_zstd(obj1)
 
     return permits
 
 
-def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None, threads=30):
+def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
     """
 
     """
-    remote = [{'bucket': bucket, 'connection_config': connection_config}]
-    t1 = Tethys(remote)
+    # remote = [{'bucket': bucket, 'connection_config': connection_config}]
+    t1 = Tethys([remote])
 
     usage_ds = [ds for ds in t1.datasets if (ds['parameter'] == 'water_use') and (ds['product_code'] == 'raw_data') and (ds['frequency_interval'] == '24H') and (ds['utc_offset'] == '12H') and (ds['method'] == 'sensor_recording')]
 
@@ -57,11 +58,11 @@ def get_usage_data(connection_config, bucket, waps, from_date=None, to_date=None
 
     if stns_all:
         stns_dict = {s['dataset_id']: [] for s in stns_all}
-        s = [stns_dict[s['dataset_id']].extend([s['station_id']]) for s in stns_all]
+        _ = [stns_dict[s['dataset_id']].extend([s['station_id']]) for s in stns_all]
 
         data_list = []
         for ds, stns in stns_dict.items():
-            data = t1.get_bulk_results(ds, stns, from_date=from_date, to_date=to_date, output='Dataset', squeeze_dims=True, threads=threads)
+            data = t1.get_results(ds, stns, from_date=from_date, to_date=to_date, output='Dataset', squeeze_dims=True, threads=threads)
 
             val2 = data[['water_use', 'ref']].drop('height').to_dataframe().reset_index()
             val2 = val2.drop('geometry', axis=1).rename(columns={'ref': 'wap'}).dropna()

@@ -123,7 +123,7 @@ class AlloUsage(object):
             with all of the base sites, allo, and allo_wap DataFrames
 
         """
-        permits0 = get_permit_data(self._permit_remote['connection_config'], self._permit_remote['bucket'], self._permit_remote['permits_key'])
+        permits0 = get_permit_data(self._permit_remote)
 
         waps, permits = allo_filter(permits0, from_date, to_date, permit_filter=permit_filter, wap_filter=wap_filter, only_consumptive=only_consumptive, include_hydroelectric=include_hydroelectric)
 
@@ -310,7 +310,7 @@ class AlloUsage(object):
 
         waps = allo1.wap.unique().tolist()
 
-        tsdata1, stns_waps = get_usage_data(self._usage_remote['connection_config'], self._usage_remote['bucket'], waps, self.from_date, self.to_date)
+        tsdata1, stns_waps = get_usage_data(self._usage_remote, waps, self.from_date, self.to_date)
         tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
 
         tsdata1 = tsdata1[['wap', 'date', 'total_usage']].copy()
@@ -459,7 +459,7 @@ class AlloUsage(object):
         # if hasattr(self, 'total_allo_ts'):
         #     delattr(self, 'total_allo_ts')
 
-        usage_est1 = self.get_ts(['usage', 'usage_est'], 'D', ['permit_id', 'wap'])
+        usage_est1 = self.get_ts(['usage', 'usage_est'], 'D', ['permit_id', 'wap'], usage_allo_ratio=usage_allo_ratio, buffer_dis=buffer_dis, min_months=min_months)
         usage_est = usage_est1[['total_usage', 'total_usage_est']].sum(axis=1)
         usage_est.name = 'sd_rate'
 
