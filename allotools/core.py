@@ -101,7 +101,6 @@ class AlloUsage(object):
     ### Initial import and assignment function
     def __init__(self, from_date=None, to_date=None, permit_filter=None, wap_filter=None,  only_consumptive=True, include_hydroelectric=False):
         """
-
         Parameters
         ----------
         from_date : str or None
@@ -313,21 +312,33 @@ class AlloUsage(object):
         tsdata1, stns_waps = get_usage_data(self._usage_remote, waps, self.from_date, self.to_date)
         tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
 
-        tsdata1 = tsdata1[['wap', 'date', 'total_usage']].copy()
+        tsdata1 = tsdata1[['wap', 'date', 'total_usage']].sort_values(['wap', 'date']).copy()
 
-        ## filter - remove individual spikes and negative values
-        tsdata1.loc[tsdata1['total_usage'] < 0, 'total_usage'] = 0
+        ## Create the data quality series
+        qa = tsdata1.rename(columns={'total_usage': 'quality_code'}).copy()
+        qa['quality_code'] = 0
+        qa['quality_code'] = qa['quality_code'].astype('int16')
+        qa = qa.set_index(['wap', 'date'])['quality_code'].copy()
 
-        def remove_spikes(x):
-            val1 = bool(x[1] > (x[0] + x[2] + 2))
-            if val1:
-                return (x[0] + x[2])/2
-            else:
-                return x[1]
+        ## filter - remove negative values (spikes are too hard with only usage data)
+        neg_bool = tsdata1['total_usage'] < 0
+        qa.loc[neg_bool.values] = 1
+        tsdata1.loc[neg_bool, 'total_usage'] = 0
 
-        tsdata1.iloc[1:-1, 2] = tsdata1['total_usage'].rolling(3, center=True).apply(remove_spikes, raw=True).iloc[1:-1]
+        # spikes = tsdata1.groupby('wap')['total_usage'].transform(lambda x: x.quantile(0.95)*3)
+        # spikes_bool = tsdata1['total_usage'] > spikes
+
+        # def remove_spikes(x):
+        #     val1 = bool(x[1] > (x[0] + x[2] + 2))
+        #     if val1:
+        #         return (x[0] + x[2])/2
+        #     else:
+        #         return x[1]
+
+        # tsdata1.iloc[1:-1, 2] = tsdata1['total_usage'].rolling(3, center=True).apply(remove_spikes, raw=True).iloc[1:-1]
 
         setattr(self, 'usage_ts_daily', tsdata1)
+        setattr(self, 'usage_ts_daily_qa', qa)
 
         ## Convert station data to DataFrame
         stns_waps1 = pd.DataFrame([{'wap': s['ref'], 'lon': s['geometry']['coordinates'][0], 'lat': s['geometry']['coordinates'][1]} for s in stns_waps])
@@ -349,7 +360,7 @@ class AlloUsage(object):
         setattr(self, 'usage_ts', tsdata2)
 
 
-    def _usage_estimation(self, freq, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+    def _usage_estimation(self, freq, buffer_dis=40000, min_months=36):
         """
 
         """
@@ -554,7 +565,14 @@ class AlloUsage(object):
         usage1['total_usage'] = usage1['total_usage'] * usage1['combo_ratio']
 
         ### Remove high outliers
-        usage1.loc[usage1['total_usage'] > (usage1['total_allo'] * usage_allo_ratio), 'total_usage'] = np.nan
+        excess_usage_bool = usage1['total_usage'] > (usage1['total_allo'] * usage_allo_ratio)
+        usage1.loc[excess_usage_bool, 'total_usage'] = np.nan
+        qa_cols = pk.copy()
+        qa_cols.append('total_usage')
+        qa = usage1[qa_cols].set_index(pk)['total_usage'].copy()
+        qa.loc[:] = 0
+        qa = qa.astype('int16')
+        qa.loc[excess_usage_bool.values] = 1
 
         ### Split the GW and SW components
         usage1['sw_ratio'] = usage1['sw_allo']/usage1['total_allo']
@@ -570,6 +588,7 @@ class AlloUsage(object):
         usage2 = usage1.dropna().groupby(pk).mean()
 
         setattr(self, 'split_usage_ts', usage2)
+        setattr(self, 'split_usage_ts_qa', qa)
 
 
     def _get_metered_allo_ts(self, freq, proportion_allo=True):
@@ -671,7 +690,7 @@ class AlloUsage(object):
             self._split_usage_ts(freq, usage_allo_ratio)
             all1.append(self.split_usage_ts)
         if 'usage_est' in datasets:
-            usage_est = self._usage_estimation(freq, usage_allo_ratio, buffer_dis, min_months)
+            usage_est = self._usage_estimation(freq, buffer_dis, min_months)
             all1.append(usage_est)
         if 'sd_rates' in datasets:
             sd_rates = self._agg_sd_rates(freq, usage_allo_ratio, buffer_dis, min_months)
@@ -680,12 +699,15 @@ class AlloUsage(object):
         if 'A' in freq_agg:
             all2 = grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg, 'sum').reset_index()
         else:
-            all2 = pd.concat(all1, axis=1).reset_index()
+            all2 = pd.concat(all1, axis=1)
+
+        if 'total_allo' in all2:
+            all2 = all2[all2['total_allo'].notnull()].copy()
 
         if not np.in1d(groupby, pk).all():
             all2 = self._merge_extra(all2, groupby)
 
-        all3 = all2.groupby(groupby).sum()
+        all3 = all2.replace(np.nan, np.inf).groupby(groupby).sum().replace(np.inf, np.nan)
         all3.name = 'results'
 
         return all3
@@ -707,7 +729,7 @@ class AlloUsage(object):
         if allo_col:
             all_allo_col = ['permit_id']
             all_allo_col.extend(allo_col)
-            data1 = pd.merge(data1, self.permits[all_allo_col], on=all_allo_col)
+            data1 = pd.merge(data1.reset_index(), self.permits[all_allo_col], on=all_allo_col)
 
         data1.set_index(pk, inplace=True)
 

@@ -62,7 +62,7 @@ def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
 
         data_list = []
         for ds, stns in stns_dict.items():
-            data = t1.get_results(ds, stns, from_date=from_date, to_date=to_date, output='Dataset', squeeze_dims=True, threads=threads)
+            data = t1.get_results(ds, stns, from_date=from_date, to_date=to_date, squeeze_dims=True, threads=threads)
 
             val2 = data[['water_use', 'ref']].drop('height').to_dataframe().reset_index()
             val2 = val2.drop('geometry', axis=1).rename(columns={'ref': 'wap'}).dropna()
