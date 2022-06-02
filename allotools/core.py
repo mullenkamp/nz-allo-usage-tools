@@ -17,6 +17,7 @@ from allotools.utils import grp_ts_agg
 from datetime import datetime
 from nz_stream_depletion import SD
 from tethys_data_models import permit
+from gistools import vector
 # from scipy.special import erfc
 
 # from matplotlib.pyplot import show
@@ -364,8 +365,6 @@ class AlloUsage(object):
         """
 
         """
-        from gistools import vector
-
         ### Get the necessary data
 
         # a1 = AlloUsage()
@@ -453,14 +452,22 @@ class AlloUsage(object):
             usage_rate1.set_index('date', inplace=True)
 
             usage_daily_rate1 = usage_rate1.groupby(['permit_id', 'wap']).apply(lambda x: x.resample('D').interpolate(method='pchip')[['total_usage_est', 'sw_allo_usage_est', 'gw_allo_usage_est']]).round(2)
-
         else:
             usage_daily_rate1 = allo_use_mis6.set_index(['permit_id', 'wap', 'date'])
 
-        usage_daily_rate2 = usage_daily_rate1.loc[slice(None), slice(None), self.from_date:self.to_date]
-        setattr(self, 'usage_est', usage_daily_rate2)
+        ## Put the actual usage back into the estimate
+        act_use1 = self.get_ts(['usage'], freq, ['permit_id', 'wap'])
 
-        return usage_daily_rate2
+        combo1 = pd.concat([usage_daily_rate1, act_use1], axis=1).sort_index()
+        combo1.loc[combo1['total_usage'].notnull(), 'total_usage_est'] = combo1.loc[combo1['total_usage'].notnull(), 'total_usage']
+        combo1.loc[combo1['sw_allo_usage'].notnull(), 'sw_allo_usage_est'] = combo1.loc[combo1['sw_allo_usage'].notnull(), 'sw_allo_usage']
+        combo1.loc[combo1['gw_allo_usage'].notnull(), 'gw_allo_usage_est'] = combo1.loc[combo1['gw_allo_usage'].notnull(), 'gw_allo_usage']
+        combo1.drop(['total_usage', 'sw_allo_usage', 'gw_allo_usage'], axis=1, inplace=True)
+
+        # combo1 = combo1.loc[slice(None), slice(None), self.from_date:self.to_date]
+        setattr(self, 'usage_est', combo1)
+
+        return combo1
 
 
     def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
@@ -470,8 +477,8 @@ class AlloUsage(object):
         # if hasattr(self, 'total_allo_ts'):
         #     delattr(self, 'total_allo_ts')
 
-        usage_est1 = self.get_ts(['usage', 'usage_est'], 'D', ['permit_id', 'wap'], usage_allo_ratio=usage_allo_ratio, buffer_dis=buffer_dis, min_months=min_months)
-        usage_est = usage_est1[['total_usage', 'total_usage_est']].sum(axis=1)
+        usage_est = self.get_ts(['usage_est'], 'D', ['permit_id', 'wap'], usage_allo_ratio=usage_allo_ratio, buffer_dis=buffer_dis, min_months=min_months)['total_usage_est']
+        # usage_est = usage_est1[['total_usage', 'total_usage_est']].sum(axis=1)
         usage_est.name = 'sd_rate'
 
         ## SD groundwater takes

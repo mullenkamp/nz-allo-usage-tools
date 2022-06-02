@@ -10,7 +10,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 name = 'nz-allo-usage-tools'
 main_package = 'allotools'
 # datasets = 'datasets'
-version = '0.1.9'
+version = '0.1.11'
 descrip = 'Functions to process and analyse NZ allocation and usage data'
 
 # The below code is for readthedocs. To have sphinx/readthedocs interact with
@@ -19,7 +19,7 @@ descrip = 'Functions to process and analyse NZ allocation and usage data'
 if os.environ.get('READTHEDOCS', False) == 'True':
     INSTALL_REQUIRES = []
 else:
-    INSTALL_REQUIRES = ['pandas', 'tethysts', 'seaborn', 'pyyaml', 'nz-stream-depletion']
+    INSTALL_REQUIRES = ['pandas', 'tethysts', 'seaborn', 'pyyaml', 'nz-stream-depletion', 'gistools']
 
 # Get the long description from the README file
 with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
