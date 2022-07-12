@@ -74,7 +74,7 @@ def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
 
     data2['time'] = data2['time'] + pd.DateOffset(hours=12)
 
-    return data2, stns_all
+    return data2
 
 
 def allo_filter(permits_list, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):

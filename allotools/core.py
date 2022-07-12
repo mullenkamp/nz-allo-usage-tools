@@ -19,6 +19,7 @@ from nz_stream_depletion import SD
 from tethys_data_models import permit
 from gistools import vector
 # from scipy.special import erfc
+import tethysts
 
 # from matplotlib.pyplot import show
 
@@ -63,6 +64,22 @@ temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered
 # results1 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'M', ['permit_id', 'wap'])
 # results2 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'D', ['permit_id', 'wap'])
 
+def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
+    """
+
+    """
+    obj1 = tethysts.utils.get_object_s3(**remote)
+    wu1 = tethysts.utils.read_pkl_zstd(obj1, True)
+    wu1['ref'] = wu1['ref'].astype(str)
+    wu1.rename(columns={'ref': 'wap'}, inplace=True)
+
+    if isinstance(from_date, (str, pd.Timestamp)):
+        wu1 = wu1[wu1['time'] >= pd.Timestamp(from_date)].copy()
+    if isinstance(to_date, (str, pd.Timestamp)):
+        wu1 = wu1[wu1['time'] <= pd.Timestamp(to_date)].copy()
+
+    return wu1
+
 ########################################
 ### Core class
 
@@ -100,7 +117,36 @@ class AlloUsage(object):
     _permit_remote = param['remote']['permit']
 
     ### Initial import and assignment function
-    def __init__(self, from_date=None, to_date=None, permit_filter=None, wap_filter=None,  only_consumptive=True, include_hydroelectric=False):
+    def __init__(self, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+        """
+        Parameters
+        ----------
+        from_date : str or None
+            The start date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
+        to_date : str or None
+            The end date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
+        permit_filter : dict
+            If permit_id_filter is a list, then it should represent the columns from the permit table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+        wap_filter : dict
+            If wap_filter is a list, then it should represent the columns from the wap table that should be returned. If it's a dict, then the keys should be the column names and the values should be the filter on those columns.
+        only_consumptive : bool
+            Should only the consumptive takes be returned? Default True
+        include_hydroelectric : bool
+            Should hydro-electric takes be included? Default False
+
+        Returns
+        -------
+        AlloUsage object
+            with all of the base sites, allo, and allo_wap DataFrames
+
+        """
+        self.process_permits(from_date, to_date, permit_filter, wap_filter, only_consumptive, include_hydroelectric)
+
+        ## Recalculate the ratios
+        # self._calc_sd_ratios()
+
+
+    def process_permits(self, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
         """
         Parameters
         ----------
@@ -143,7 +189,7 @@ class AlloUsage(object):
         setattr(self, 'to_date', to_date1)
 
         ## Recalculate the ratios
-        self._calc_sd_ratios()
+        # self._calc_sd_ratios()
 
 
     def _est_allo_ts(self, freq):
@@ -310,7 +356,7 @@ class AlloUsage(object):
 
         waps = allo1.wap.unique().tolist()
 
-        tsdata1, stns_waps = get_usage_data(self._usage_remote, waps, self.from_date, self.to_date)
+        tsdata1 = get_usage_data(self._usage_remote, waps, self.from_date, self.to_date)
         tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
 
         tsdata1 = tsdata1[['wap', 'date', 'total_usage']].sort_values(['wap', 'date']).copy()
@@ -340,11 +386,6 @@ class AlloUsage(object):
 
         setattr(self, 'usage_ts_daily', tsdata1)
         setattr(self, 'usage_ts_daily_qa', qa)
-
-        ## Convert station data to DataFrame
-        stns_waps1 = pd.DataFrame([{'wap': s['ref'], 'lon': s['geometry']['coordinates'][0], 'lat': s['geometry']['coordinates'][1]} for s in stns_waps])
-
-        setattr(self, 'waps_only', stns_waps1)
 
 
     def _agg_usage(self, freq):
