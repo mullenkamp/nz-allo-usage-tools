@@ -1,5 +1,5 @@
 {% set name = "nz-allo-usage-tools" %}
-{% set version = "0.1.11" %}
+{% set version = "0.1.12" %}
 # {% set sha256 = "6eb3ff34e05a9e1e193fcf085887e6b04ff695e4d89612983984770a4f4a1696" %}
 
 # sha256 is the prefered checksum -- you can get it for a file with:
@@ -35,7 +35,7 @@ requirements:
     - python
     - setuptools
   run:
-    - python>=3.6
+    - python>=3.8
     - pandas
     - seaborn
     - tethysts

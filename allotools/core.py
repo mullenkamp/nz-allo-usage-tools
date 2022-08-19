@@ -19,7 +19,7 @@ from nz_stream_depletion import SD
 from tethys_data_models import permit
 from gistools import vector
 # from scipy.special import erfc
-import tethysts
+# import tethysts
 
 # from matplotlib.pyplot import show
 
@@ -64,21 +64,21 @@ temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered
 # results1 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'M', ['permit_id', 'wap'])
 # results2 = self.get_ts(['allo', 'metered_allo', 'usage', 'usage_est'], 'D', ['permit_id', 'wap'])
 
-def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
-    """
+# def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
+#     """
 
-    """
-    obj1 = tethysts.utils.get_object_s3(**remote)
-    wu1 = tethysts.utils.read_pkl_zstd(obj1, True)
-    wu1['ref'] = wu1['ref'].astype(str)
-    wu1.rename(columns={'ref': 'wap'}, inplace=True)
+#     """
+#     obj1 = tethysts.utils.get_object_s3(**remote)
+#     wu1 = tethysts.utils.read_pkl_zstd(obj1, True)
+#     wu1['ref'] = wu1['ref'].astype(str)
+#     wu1.rename(columns={'ref': 'wap'}, inplace=True)
 
-    if isinstance(from_date, (str, pd.Timestamp)):
-        wu1 = wu1[wu1['time'] >= pd.Timestamp(from_date)].copy()
-    if isinstance(to_date, (str, pd.Timestamp)):
-        wu1 = wu1[wu1['time'] <= pd.Timestamp(to_date)].copy()
+#     if isinstance(from_date, (str, pd.Timestamp)):
+#         wu1 = wu1[wu1['time'] >= pd.Timestamp(from_date)].copy()
+#     if isinstance(to_date, (str, pd.Timestamp)):
+#         wu1 = wu1[wu1['time'] <= pd.Timestamp(to_date)].copy()
 
-    return wu1
+#     return wu1
 
 ########################################
 ### Core class
@@ -189,7 +189,7 @@ class AlloUsage(object):
         setattr(self, 'to_date', to_date1)
 
         ## Recalculate the ratios
-        # self._calc_sd_ratios()
+        self._calc_sd_ratios()
 
 
     def _est_allo_ts(self, freq):

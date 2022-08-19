@@ -64,8 +64,10 @@ def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
         for ds, stns in stns_dict.items():
             data = t1.get_results(ds, stns, from_date=from_date, to_date=to_date, squeeze_dims=True, threads=threads)
 
-            val2 = data[['water_use', 'ref']].drop('height').to_dataframe().reset_index()
-            val2 = val2.drop('geometry', axis=1).rename(columns={'ref': 'wap'}).dropna()
+            stns_df = pd.DataFrame([{'station_id': stn['station_id'], 'ref': stn['ref']} for stn in stns_all])
+
+            val2 = data[['station_id', 'water_use']].drop('height').to_dataframe().reset_index().drop('geometry', axis=1).dropna()
+            val2 = pd.merge(stns_df, val2, on='station_id').drop('station_id', axis=1).rename(columns={'ref': 'wap'})
             data_list.append(val2)
 
         data2 = pd.concat(data_list)
