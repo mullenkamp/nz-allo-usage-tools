@@ -184,7 +184,6 @@ class AlloUsage(object):
 
         setattr(self, 'waps', waps)
         setattr(self, 'permits', permits)
-        # setattr(self, 'sd', sd)
         setattr(self, 'from_date', from_date1)
         setattr(self, 'to_date', to_date1)
 
@@ -200,13 +199,6 @@ class AlloUsage(object):
         limit_col = allo_type_dict[freq]
         allo4 = allo_ts(self.permits, self.from_date, self.to_date, freq, limit_col).round()
         allo4.name = 'total_allo'
-
-        # allo4 = (allo4 * multiplier).round()
-
-        # if self.irr_season and ('A' not in self.freq):
-        #     dates1 = allo4.index.levels[2]
-        #     dates2 = dates1[dates1.month.isin([10, 11, 12, 1, 2, 3, 4])]
-        #     allo4 = allo4.loc[(slice(None), slice(None), dates2)]
 
         setattr(self, 'total_allo_ts', allo4.reset_index())
 
@@ -237,9 +229,6 @@ class AlloUsage(object):
         sd_list = []
 
         for i, v in waps1.iterrows():
-            # if i[1] == 'F44/0193':
-            #     break
-            # print(i)
 
             if np.isnan(v['sep_distance']) or np.isnan(v['pump_aq_trans']) or np.isnan(v['pump_aq_s']):
                 if 'stream_depletion_ratio' in v:
@@ -265,7 +254,6 @@ class AlloUsage(object):
                 sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
                 sd_list.append(sd_ratio2)
 
-
         sd_ratios = pd.concat(sd_list)
 
         waps2 = pd.merge(self.waps, sd_ratios, on=['permit_id', 'wap'], how='left')
@@ -288,35 +276,6 @@ class AlloUsage(object):
         allo7 = allo6.drop(['combo_wap_allo', 'combo_wap_ratio', 'total_allo'], axis=1).rename(columns={'wap_allo': 'total_allo'}).copy()
 
         ## Calculate the stream depletion
-        # gw_allo_sd = allo7[allo7.sd_ratio.notnull()].copy()
-
-        # grp_sd = gw_allo_sd.groupby(['permit_id', 'hydro_feature', 'wap'])
-
-        # sd = SD()
-
-        # all_params = set()
-
-        # _ = [all_params.update(p) for p in sd.all_methods.values()]
-
-        # for i, v in grp_sd:
-        #     # print(i)
-        #     wap = i[2]
-        #     v1 = v[['date', 'total_allo']].set_index('date').total_allo
-        #     wap_series = self.waps[self.waps.wap == wap].iloc[0]
-
-        #     params = self._prep_aquifer_data(wap_series, all_params)
-        #     avail = sd.load_aquifer_data(**params)
-
-        #     if 'method' in v:
-        #         method = wap_series['method']
-        #         if method in avail:
-        #             allo0 = sd.calc_sd_extraction(v1, method)
-        #         else:
-        #             allo0 = sd.calc_sd_extraction(v1)
-        #     else:
-        #         allo0 = sd.calc_sd_extraction(v1)
-
-
         allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'groundwater'), 'sd_ratio'] = 0
         allo7.loc[allo7.sd_ratio.isnull() & (allo7.hydro_feature == 'surface water'), 'sd_ratio'] = 1
 
@@ -334,13 +293,9 @@ class AlloUsage(object):
         Function to create an allocation time series.
 
         """
-        # if not hasattr(self, 'total_allo_ts'):
-        #     self._est_allo_ts(freq)
-
         self._est_allo_ts(freq)
 
         ### Convert to GW and SW allocation
-
         self._allo_wap_spit()
 
 
@@ -348,9 +303,6 @@ class AlloUsage(object):
         """
 
         """
-        # if not hasattr(self, 'wap_allo_ts'):
-        #     self._get_allo_ts(freq)
-
         self._get_allo_ts(freq)
         allo1 = self.wap_allo_ts.copy().reset_index()
 
@@ -371,18 +323,6 @@ class AlloUsage(object):
         neg_bool = tsdata1['total_usage'] < 0
         qa.loc[neg_bool.values] = 1
         tsdata1.loc[neg_bool, 'total_usage'] = 0
-
-        # spikes = tsdata1.groupby('wap')['total_usage'].transform(lambda x: x.quantile(0.95)*3)
-        # spikes_bool = tsdata1['total_usage'] > spikes
-
-        # def remove_spikes(x):
-        #     val1 = bool(x[1] > (x[0] + x[2] + 2))
-        #     if val1:
-        #         return (x[0] + x[2])/2
-        #     else:
-        #         return x[1]
-
-        # tsdata1.iloc[1:-1, 2] = tsdata1['total_usage'].rolling(3, center=True).apply(remove_spikes, raw=True).iloc[1:-1]
 
         setattr(self, 'usage_ts_daily', tsdata1)
         setattr(self, 'usage_ts_daily_qa', qa)
@@ -407,17 +347,10 @@ class AlloUsage(object):
 
         """
         ### Get the necessary data
+        allo_use0 = self.get_ts(['allo', 'metered_allo', 'usage'], freq, ['permit_id', 'wap'])
+        allo_use1 = allo_use0.reset_index().groupby(['permit_id', 'wap', pd.Grouper(key='date', freq='M')]).sum()
 
-        # a1 = AlloUsage()
-        # a1.permits = self.permits.copy()
-        # a1.waps = self.waps.copy()
-        # a1.from_date = self.from_date
-        # a1.to_date = self.to_date
-
-        # if hasattr(self, 'total_allo_ts'):
-        #     delattr(self, 'total_allo_ts')
-
-        allo_use1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+        del allo_use0
 
         permits = self.permits.copy()
 
@@ -425,10 +358,29 @@ class AlloUsage(object):
         waps1 = vector.xy_to_gpd('wap', 'lon', 'lat', self.waps.drop('permit_id', axis=1).drop_duplicates('wap'), 4326)
         waps2 = waps1.to_crs(2193)
 
-        ### Determine which Waps need to be estimated
-        allo_use_mis1 = allo_use1[allo_use1['total_metered_allo'] == 0].copy().reset_index()
-        allo_use_with1 = allo_use1[allo_use1['total_metered_allo'] > 0].copy().reset_index()
+        ### Get base data
+        bool1 = allo_use1['total_metered_allo'] <  (allo_use1['total_allo']*0.5)
+        allo_use_mis1 = allo_use1[bool1].copy().reset_index()
+        allo_use_with1 = allo_use1[~bool1].copy().reset_index()
 
+        ### Calc ratios
+        allo_use_with2 = pd.merge(allo_use_with1, permits[['permit_id', 'use_type']], on='permit_id')
+
+        allo_use_with2['month'] = allo_use_with2['date'].dt.month
+        allo_use_with2['usage_allo'] = allo_use_with2['total_usage']/allo_use_with2['total_allo']
+
+        allo_use_ratio1 = allo_use_with2.groupby(['permit_id', 'wap', 'use_type', 'month'])['usage_allo'].mean().reset_index()
+
+        ### Assign ratios to consents/waps that already have data
+        allo_use_mis1['month'] = allo_use_mis1['date'].dt.month
+
+        allo_use_mis0 = pd.merge(allo_use_mis1[['permit_id', 'wap', 'month', 'date', 'total_allo', 'sw_allo', 'gw_allo']], allo_use_ratio1, on=['permit_id', 'wap', 'month']).drop(['month', 'use_type'], axis=1)
+
+        allo_use_mis0['total_usage_est'] = (allo_use_mis0['usage_allo'] * allo_use_mis0['total_allo']).round()
+        allo_use_mis0['sw_allo_usage_est'] = (allo_use_mis0['usage_allo'] * allo_use_mis0['sw_allo']).round()
+        allo_use_mis0['gw_allo_usage_est'] = (allo_use_mis0['usage_allo'] * allo_use_mis0['gw_allo']).round()
+
+        ### Determine which Waps need to be estimated
         mis_waps1 = allo_use_mis1.groupby(['permit_id', 'wap'])['total_allo'].count().copy()
         with_waps1 = allo_use_with1.groupby(['permit_id', 'wap'])['total_allo'].count()
         with_waps2 = with_waps1[with_waps1 >= min_months]
@@ -440,17 +392,8 @@ class AlloUsage(object):
         mis_waps2 = pd.merge(mis_waps1.reset_index(), permits[['permit_id', 'use_type']], on='permit_id')
         mis_waps3 = pd.merge(waps2, mis_waps2['wap'], on='wap')
         mis_waps3['geometry'] = mis_waps3['geometry'].buffer(buffer_dis)
-        # mis_waps3.rename(columns={'wap': 'mis_wap'}, inplace=True)
 
         mis_waps4, poly1 = vector.pts_poly_join(with_waps4.rename(columns={'wap': 'good_wap'}), mis_waps3, 'wap')
-
-        ## Calc ratios
-        allo_use_with2 = pd.merge(allo_use_with1, permits[['permit_id', 'use_type']], on='permit_id')
-
-        allo_use_with2['month'] = allo_use_with2['date'].dt.month
-        allo_use_with2['usage_allo'] = allo_use_with2['total_usage']/allo_use_with2['total_allo']
-
-        allo_use_ratio1 = allo_use_with2.groupby(['permit_id', 'wap', 'use_type', 'month'])['usage_allo'].mean().reset_index()
 
         allo_use_ratio2 = pd.merge(allo_use_ratio1.rename(columns={'wap': 'good_wap'}), mis_waps4[['good_wap', 'wap']], on='good_wap')
 
@@ -467,7 +410,10 @@ class AlloUsage(object):
         allo_use_mis5['sw_allo_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['sw_allo']).round()
         allo_use_mis5['gw_allo_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['gw_allo']).round()
 
-        allo_use_mis6 = allo_use_mis5[['permit_id', 'wap', 'date', 'total_usage_est', 'sw_allo_usage_est', 'gw_allo_usage_est']].copy()
+        allo_use_mis5b = allo_use_mis5[['permit_id', 'wap', 'date', 'total_usage_est', 'sw_allo_usage_est', 'gw_allo_usage_est']].copy()
+
+        ## Combine with the eariler estimates
+        allo_use_mis6 = pd.concat([allo_use_mis0.drop(['total_allo', 'sw_allo', 'gw_allo', 'usage_allo'], axis=1), allo_use_mis5b]).drop_duplicates(['permit_id', 'wap', 'date'], keep='first')
 
         ### Convert to daily if required
         if freq == 'D':
@@ -505,7 +451,6 @@ class AlloUsage(object):
         combo1.loc[combo1['gw_allo_usage'].notnull(), 'gw_allo_usage_est'] = combo1.loc[combo1['gw_allo_usage'].notnull(), 'gw_allo_usage']
         combo1.drop(['total_usage', 'sw_allo_usage', 'gw_allo_usage'], axis=1, inplace=True)
 
-        # combo1 = combo1.loc[slice(None), slice(None), self.from_date:self.to_date]
         setattr(self, 'usage_est', combo1)
 
         return combo1
@@ -515,11 +460,7 @@ class AlloUsage(object):
         """
 
         """
-        # if hasattr(self, 'total_allo_ts'):
-        #     delattr(self, 'total_allo_ts')
-
         usage_est = self.get_ts(['usage_est'], 'D', ['permit_id', 'wap'], usage_allo_ratio=usage_allo_ratio, buffer_dis=buffer_dis, min_months=min_months)['total_usage_est']
-        # usage_est = usage_est1[['total_usage', 'total_usage_est']].sum(axis=1)
         usage_est.name = 'sd_rate'
 
         ## SD groundwater takes
@@ -593,14 +534,8 @@ class AlloUsage(object):
 
         """
         ### Get the usage data if it exists
-        # if not hasattr(self, 'usage_ts'):
-        #     self._agg_usage(freq)
-
         self._agg_usage(freq)
         tsdata2 = self.usage_ts.copy().reset_index()
-
-        # if not hasattr(self, 'allo_ts'):
-        #     self._get_allo_ts(freq)
 
         self._get_allo_ts(freq)
         allo1 = self.wap_allo_ts.copy().reset_index()
@@ -631,7 +566,6 @@ class AlloUsage(object):
 
         ### Remove other columns
         usage1.drop(['sw_allo', 'gw_allo', 'total_allo', 'combo_allo', 'combo_ratio', 'sw_ratio', 'gw_ratio'], axis=1, inplace=True)
-        # usage1.drop(['sw_allo', 'gw_allo', 'total_allo', 'combo_allo', 'combo_ratio'], axis=1, inplace=True)
 
         usage2 = usage1.dropna().groupby(pk).mean()
 
@@ -646,9 +580,6 @@ class AlloUsage(object):
         setattr(self, 'proportion_allo', proportion_allo)
 
         ### Get the allocation ts either total or metered
-        # if not hasattr(self, 'wap_allo_ts'):
-        #     self._get_allo_ts(freq)
-
         self._get_allo_ts(freq)
         allo1 = self.wap_allo_ts.copy().reset_index()
         rename_dict = {'sw_allo': 'sw_metered_allo', 'gw_allo': 'gw_metered_allo', 'total_allo': 'total_metered_allo'}
@@ -707,24 +638,6 @@ class AlloUsage(object):
         if not np.in1d(datasets, self.dataset_types).all():
             raise ValueError('datasets must be a list that includes one or more of ' + str(self.dataset_types))
 
-        ### Check new to old parameters and remove attributes if necessary
-        if 'A' in freq:
-            freq_agg = freq
-            freq = 'M'
-        else:
-            freq_agg = freq
-
-        # if hasattr(self, 'freq'):
-        #     if (self.freq != freq):
-        #         for d in temp_datasets:
-        #             if hasattr(self, d):
-        #                 delattr(self, d)
-
-        ### Assign pararameters
-        # setattr(self, 'freq', freq)
-        # setattr(self, 'sd_days', sd_days)
-        # setattr(self, 'irr_season', irr_season)
-
         ### Get the results and combine
         all1 = []
 
@@ -744,10 +657,7 @@ class AlloUsage(object):
             sd_rates = self._agg_sd_rates(freq, usage_allo_ratio, buffer_dis, min_months)
             all1.append(sd_rates)
 
-        if 'A' in freq_agg:
-            all2 = grp_ts_agg(pd.concat(all1, axis=1).reset_index(), ['permit_id', 'wap'], 'date', freq_agg, 'sum').reset_index()
-        else:
-            all2 = pd.concat(all1, axis=1)
+        all2 = pd.concat(all1, axis=1)
 
         if 'total_allo' in all2:
             all2 = all2[all2['total_allo'].notnull()].copy()
@@ -765,15 +675,10 @@ class AlloUsage(object):
         """
 
         """
-        # sites_col = [c for c in cols if c in self.waps.columns]
         allo_col = [c for c in cols if c in self.permits.columns]
 
         data1 = data.copy()
 
-        # if sites_col:
-        #     all_sites_col = ['wap']
-        #     all_sites_col.extend(sites_col)
-        #     data1 = pd.merge(data1, self.waps.reset_index()[all_sites_col], on='wap')
         if allo_col:
             all_allo_col = ['permit_id']
             all_allo_col.extend(allo_col)

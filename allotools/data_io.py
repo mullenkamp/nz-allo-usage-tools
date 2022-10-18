@@ -41,7 +41,7 @@ def get_permit_data(remote):
     return permits
 
 
-def get_usage_data(remote, waps, from_date=None, to_date=None, threads=30):
+def get_usage_data(remote, waps, from_date=None, to_date=None, threads=60):
     """
 
     """
