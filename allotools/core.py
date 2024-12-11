@@ -7,38 +7,63 @@ Created on Sat Feb 16 09:50:42 2019
 import os
 import numpy as np
 import pandas as pd
-import yaml
+# import yaml
 # from data_io import get_permit_data, get_usage_data, allo_filter
-from allotools.data_io import get_permit_data, get_usage_data, allo_filter
-from allotools.allocation_ts import allo_ts
-from allotools.utils import grp_ts_agg
+
 # from allotools.plot import plot_group as pg
 # from allotools.plot import plot_stacked as ps
-from datetime import datetime
+# from datetime import datetime
 from nz_stream_depletion import SD
-from tethys_data_models import permit
+# from tethys_data_models import permit
 from gistools import vector
 # from scipy.special import erfc
 # import tethysts
+
+from allotools.data_io import get_usage_data, allo_filter
+# from data_io import get_usage_data, allo_filter
+
+from allotools.allocation_ts import allo_ts
+# from allocation_ts import allo_ts
+
+from allotools.utils import grp_ts_agg
+# from utils import grp_ts_agg
+
 
 # from matplotlib.pyplot import show
 
 #########################################
 ### parameters
 
-base_path = os.path.realpath(os.path.dirname(__file__))
+# base_path = os.path.realpath(os.path.dirname(__file__))
 
-with open(os.path.join(base_path, 'parameters.yml')) as param:
-    param = yaml.safe_load(param)
+# with open(os.path.join(base_path, 'parameters.yml')) as param:
+#     param = yaml.safe_load(param)
 
 pk = ['permit_id', 'wap', 'date']
 dataset_types = ['allo', 'metered_allo',  'usage', 'usage_est', 'sd_rates']
 allo_type_dict = {'D': 'max_daily_volume', 'W': 'max_daily_volume', 'M': 'max_annual_volume', 'A-JUN': 'max_annual_volume', 'A': 'max_annual_volume'}
 # allo_mult_dict = {'D': 0.001*24*60*60, 'W': 0.001*24*60*60*7, 'M': 0.001*24*60*60*30, 'A-JUN': 0.001*24*60*60*365, 'A': 0.001*24*60*60*365}
-temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered_allo_ts']
+
 
 #######################################
 ### Testing
+
+# temp_datasets = ['allo_ts', 'total_allo_ts', 'wap_allo_ts', 'usage_ts', 'metered_allo_ts']
+
+# permit_id = 'ATH-1970006239.00'
+# wap = '4868c3083810c5036b95363d'
+
+# permits_path = '/home/mike/git/HRC-flow-nat/data/permits.blt'
+# usage_path = '/home/mike/git/HRC-flow-nat/data/abstraction_data_daily.blt'
+
+# freq = 'D'
+# proportion_allo=True
+
+# from_date = '2004-07-01'
+# to_date = '2024-06-30'
+
+# datasets = ['allo', 'metered_allo', 'usage', 'usage_est']
+# groupby = ['permit_id', 'wap']
 
 # from_date = '2000-07-01'
 # to_date = '2020-06-30'
@@ -90,6 +115,10 @@ class AlloUsage(object):
 
     Parameters
     ----------
+    permits_path : str or pathlib.Path
+        Path to booklet file structured according to the nzpermits package.
+    usage_path : str or pathlib.Path
+        Path to booklet file structured with the keys as wap/station id as pandas dataframes with the columns 'time' and {station_id}.
     from_date : str or None
         The start date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
     to_date : str or None
@@ -102,6 +131,10 @@ class AlloUsage(object):
         Should only the consumptive takes be returned? Default True
     include_hydroelectric : bool
         Should hydro-electric takes be included? Default False
+    use_type_mapping : dict
+        Dict mapping of the detailed use types to more generic use types. This is used during the usage estimation process and can be mapped to most anything. The the fewer the use types the better.
+    default_sd_ratio : float
+        The default stream depletion ratio if no GW aquifer data is supplied AT ALL. 
 
     Returns
     -------
@@ -113,14 +146,18 @@ class AlloUsage(object):
     # plot_group = pg
     # plot_stacked = ps
 
-    _usage_remote = param['remote']['usage']
-    _permit_remote = param['remote']['permit']
+    # _usage_remote = param['remote']['usage']
+    # _permit_remote = param['remote']['permit']
 
     ### Initial import and assignment function
-    def __init__(self, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+    def __init__(self, permits_path, usage_path, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False, use_type_mapping={}, default_sd_ratio=0.35):
         """
         Parameters
         ----------
+        permits_path : str or pathlib.Path
+            Path to booklet file structured according to the nzpermits package/model.
+        usage_path : str or pathlib.Path
+            Path to booklet file structured with the keys as wap/station id as pandas dataframes with the columns 'time' and {station_id}.
         from_date : str or None
             The start date of the consent and the final time series. In the form of '2000-01-01'. None will return all consents and subsequently all dates.
         to_date : str or None
@@ -133,6 +170,10 @@ class AlloUsage(object):
             Should only the consumptive takes be returned? Default True
         include_hydroelectric : bool
             Should hydro-electric takes be included? Default False
+        use_type_mapping : dict
+            Dict mapping of the detailed use types to more generic use types. This is used during the usage estimation process and can be mapped to most anything. The the fewer the use types the better.
+        default_sd_ratio : float
+            The default stream depletion ratio if no GW aquifer data is supplied AT ALL. 
 
         Returns
         -------
@@ -140,13 +181,16 @@ class AlloUsage(object):
             with all of the base sites, allo, and allo_wap DataFrames
 
         """
-        self.process_permits(from_date, to_date, permit_filter, wap_filter, only_consumptive, include_hydroelectric)
+        self.usage_path = usage_path
+        self.default_sd_ratio = default_sd_ratio
+
+        self.process_permits(permits_path, from_date, to_date, permit_filter, wap_filter, only_consumptive, include_hydroelectric, use_type_mapping)
 
         ## Recalculate the ratios
         # self._calc_sd_ratios()
 
 
-    def process_permits(self, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+    def process_permits(self, permits_path, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False, use_type_mapping={}):
         """
         Parameters
         ----------
@@ -169,9 +213,9 @@ class AlloUsage(object):
             with all of the base sites, allo, and allo_wap DataFrames
 
         """
-        permits0 = get_permit_data(self._permit_remote)
+        # permits0 = get_permit_data(self._permit_remote)
 
-        waps, permits = allo_filter(permits0, from_date, to_date, permit_filter=permit_filter, wap_filter=wap_filter, only_consumptive=only_consumptive, include_hydroelectric=include_hydroelectric)
+        waps, permits = allo_filter(permits_path, from_date, to_date, permit_filter=permit_filter, wap_filter=wap_filter, only_consumptive=only_consumptive, include_hydroelectric=include_hydroelectric, use_type_mapping=use_type_mapping)
 
         if from_date is None:
             from_date1 = pd.Timestamp('1900-07-01')
@@ -203,60 +247,68 @@ class AlloUsage(object):
         setattr(self, 'total_allo_ts', allo4.reset_index())
 
 
-    @staticmethod
-    def _prep_aquifer_data(series, all_params):
-        """
+    # @staticmethod
+    # def _prep_aquifer_data(series, all_params):
+    #     """
 
-        """
-        v1 = series.dropna().to_dict()
-        v2 = permit.AquiferProp(**{k: v for k, v in v1.items() if k in all_params}).dict(exclude_none=True)
+    #     """
+    #     v1 = series.dropna().to_dict()
+    #     v2 = permit.AquiferProp(**{k: v for k, v in v1.items() if k in all_params}).dict(exclude_none=True)
 
-        return v2
+    #     return v2
 
 
     def _calc_sd_ratios(self):
         """
 
         """
-        waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s', 'stream_depletion_ratio'], how='all').set_index(['permit_id', 'wap']).copy()
+        if 'sep_distance' in self.waps.columns:
+            waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s', 'stream_depletion_ratio'], how='all').set_index(['permit_id', 'wap']).copy()
 
-        sd = SD()
+            sd = SD()
 
-        all_params = set()
+            all_params = set()
 
-        _ = [all_params.update(p) for p in sd.all_methods.values()]
+            _ = [all_params.update(p) for p in sd.all_methods.values()]
 
-        sd_list = []
+            sd_list = []
 
-        for i, v in waps1.iterrows():
+            for i, v in waps1.iterrows():
 
-            if np.isnan(v['sep_distance']) or np.isnan(v['pump_aq_trans']) or np.isnan(v['pump_aq_s']):
-                if 'stream_depletion_ratio' in v:
+                if np.isnan(v['sep_distance']) or np.isnan(v['pump_aq_trans']) or np.isnan(v['pump_aq_s']):
+                    if 'stream_depletion_ratio' in v:
+                        d1 = list(i)
+                        d1.extend([round(v['stream_depletion_ratio'], 3)])
+                        sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
+                        sd_list.append(sd_ratio2)
+                else:
+                    # v2 = self._prep_aquifer_data(v, all_params)
+                    v1 = v.dropna().to_dict()
+                    v2 = {k: v for k, v in v1.items() if k in all_params}
+                    n_days = int(v['n_days'])
+                    method = v['method']
+
+                    avail = sd.load_aquifer_data(**v2)
+
+                    if method in avail:
+                        sd_ratio1 = sd.calc_sd_ratio(n_days, method)
+                    else:
+                        sd_ratio1 = sd.calc_sd_ratio(n_days)
+
                     d1 = list(i)
-                    d1.extend([round(v['stream_depletion_ratio'], 3)])
+                    d1.extend([round(sd_ratio1, 3)])
+
                     sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
                     sd_list.append(sd_ratio2)
-            else:
-                v2 = self._prep_aquifer_data(v, all_params)
-                n_days = int(v['n_days'])
-                method = v['method']
 
-                avail = sd.load_aquifer_data(**v2)
+            sd_ratios = pd.concat(sd_list)
 
-                if method in avail:
-                    sd_ratio1 = sd.calc_sd_ratio(n_days, method)
-                else:
-                    sd_ratio1 = sd.calc_sd_ratio(n_days)
-
-                d1 = list(i)
-                d1.extend([round(sd_ratio1, 3)])
-
-                sd_ratio2 = pd.DataFrame([d1], columns=['permit_id', 'wap', 'sd_ratio'])
-                sd_list.append(sd_ratio2)
-
-        sd_ratios = pd.concat(sd_list)
-
-        waps2 = pd.merge(self.waps, sd_ratios, on=['permit_id', 'wap'], how='left')
+            waps2 = pd.merge(self.waps, sd_ratios, on=['permit_id', 'wap'], how='left')
+        else:
+            ## Alternative until we get data
+            waps2 = self.waps.copy()
+            waps2['sd_ratio'] = 1
+            waps2.loc[waps2.permit_id.isin(self.permits.loc[self.permits.hydro_feature == 'groundwater', 'permit_id'].unique()), 'sd_ratio'] = self.default_sd_ratio
 
         setattr(self, 'waps', waps2)
 
@@ -308,7 +360,7 @@ class AlloUsage(object):
 
         waps = allo1.wap.unique().tolist()
 
-        tsdata1 = get_usage_data(self._usage_remote, waps, self.from_date, self.to_date)
+        tsdata1 = get_usage_data(self.usage_path, waps, self.from_date, self.to_date)
         tsdata1.rename(columns={'water_use': 'total_usage', 'time': 'date'}, inplace=True)
 
         tsdata1 = tsdata1[['wap', 'date', 'total_usage']].sort_values(['wap', 'date']).copy()
@@ -342,15 +394,18 @@ class AlloUsage(object):
         setattr(self, 'usage_ts', tsdata2)
 
 
-    def _usage_estimation(self, freq, buffer_dis=40000, min_months=36):
+    def _usage_estimation(self, freq, buffer_dis=80000, min_months=36):
         """
 
         """
         ### Get the necessary data
-        allo_use0 = self.get_ts(['allo', 'metered_allo', 'usage'], freq, ['permit_id', 'wap'])
-        allo_use1 = allo_use0.reset_index().groupby(['permit_id', 'wap', pd.Grouper(key='date', freq='M')]).sum()
+        if freq in ('D', 'W', 'M'):
+            allo_use1 = self.get_ts(['allo', 'metered_allo', 'usage'], 'M', ['permit_id', 'wap'])
+        else:
+            allo_use0 = self.get_ts(['allo', 'metered_allo', 'usage'], freq, ['permit_id', 'wap'])
+            allo_use1 = allo_use0.reset_index().groupby(['permit_id', 'wap', pd.Grouper(key='date', freq='M')]).sum()
 
-        del allo_use0
+            del allo_use0
 
         permits = self.permits.copy()
 
@@ -432,7 +487,7 @@ class AlloUsage(object):
             first1 = grp1.first()
             last1 = grp1.last()
 
-            first1.loc[:, 'date'] = pd.to_datetime(first1.loc[:, 'date'].dt.strftime('%Y-%m') + '-01')
+            first1['date'] = pd.to_datetime(first1.loc[:, 'date'].dt.strftime('%Y-%m') + '-01')
 
             usage_rate1 = pd.concat([first1, usage_rate0.set_index(['permit_id', 'wap']), last1], sort=True).reset_index().sort_values(['permit_id', 'wap', 'date'])
 
@@ -456,7 +511,7 @@ class AlloUsage(object):
         return combo1
 
 
-    def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+    def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=80000, min_months=36):
         """
 
         """
@@ -464,40 +519,40 @@ class AlloUsage(object):
         usage_est.name = 'sd_rate'
 
         ## SD groundwater takes
-        usage_index = usage_est.index.droplevel(2).unique()
-
-        waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s']).set_index(['permit_id', 'wap']).copy()
-
-        sd = SD()
-
-        all_params = set()
-
-        _ = [all_params.update(p) for p in sd.all_methods.values()]
-
         sd_list = []
-
-        for i, v in waps1.iterrows():
-            if i in usage_index:
-                use1 = usage_est.loc[i]
-
-                v2 = self._prep_aquifer_data(v, all_params)
-                # n_days = int(v['n_days'])
-                method = v['method']
-
-                avail = sd.load_aquifer_data(**v2)
-
-                if method in avail:
-                    sd_rates1 = sd.calc_sd_extraction(use1, method)
-                else:
-                    sd_rates1 = sd.calc_sd_extraction(use1)
-
-                sd_rates1.name = 'sd_rate'
-
-                sd_rates1 = sd_rates1.reset_index()
-                sd_rates1['permit_id'] = i[0]
-                sd_rates1['wap'] = i[1]
-
-                sd_list.append(sd_rates1)
+        if 'sep_distance' in self.waps.columns:
+            usage_index = usage_est.index.droplevel(2).unique()
+    
+            waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s']).set_index(['permit_id', 'wap']).copy()
+    
+            sd = SD()
+    
+            all_params = set()
+    
+            _ = [all_params.update(p) for p in sd.all_methods.values()]
+    
+            for i, v in waps1.iterrows():
+                if i in usage_index:
+                    use1 = usage_est.loc[i]
+    
+                    v2 = self._prep_aquifer_data(v, all_params)
+                    # n_days = int(v['n_days'])
+                    method = v['method']
+    
+                    avail = sd.load_aquifer_data(**v2)
+    
+                    if method in avail:
+                        sd_rates1 = sd.calc_sd_extraction(use1, method)
+                    else:
+                        sd_rates1 = sd.calc_sd_extraction(use1)
+    
+                    sd_rates1.name = 'sd_rate'
+    
+                    sd_rates1 = sd_rates1.reset_index()
+                    sd_rates1['permit_id'] = i[0]
+                    sd_rates1['wap'] = i[1]
+    
+                    sd_list.append(sd_rates1)
 
         ## SW takes
         sw_permits = self.permits[self.permits.hydro_feature == 'surface water'].permit_id.unique()

@@ -39,7 +39,6 @@ t3 = 'CRC011245'
 
 cols = ['SwazName', 'use_type', 'date']
 
-export_path = r'E:\ecan\local\Projects\requests\Ilja\2019-02-27'
 
 
 ########################################

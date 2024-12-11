@@ -6,12 +6,15 @@ Created on Wed Oct  3 16:40:35 2018
 """
 import io
 import os
-import yaml
+# import yaml
 import pandas as pd
-from tethysts import Tethys
-from tethysts import utils
+# from tethysts import Tethys
+# from tethysts import utils
 import copy
+import booklet
 # from multiprocessing.pool import ThreadPool
+
+# import params
 
 pd.options.display.max_columns = 10
 
@@ -20,10 +23,11 @@ pd.options.display.max_columns = 10
 
 base_path = os.path.realpath(os.path.dirname(__file__))
 
-with open(os.path.join(base_path, 'parameters.yml')) as param:
-    param = yaml.safe_load(param)
+# with open(os.path.join(base_path, 'parameters.yml')) as param:
+#     param = yaml.safe_load(param)
 
-use_type_dict = param['input']['use_type_dict']
+# use_type_dict = param['input']['use_type_dict']
+
 
 # use_type_dict = {'Dairying - Cows': 'irrigation', 'Water Supply - Rural': 'water_supply', 'Pasture Irrigation': 'irrigation', 'Crop Irrigation': 'irrigation', 'Stock Yard': 'stockwater', 'Water Supply - Town': 'water_supply', 'Quarrying': 'other', 'Recreational': 'other', 'Gravel extraction': 'other', 'Hydro-electric power generation': 'hydro_electric', 'Food Processing': 'other', 'Meat works': 'other', 'Tourism': 'other', 'Mining works': 'other', 'Industrial': 'other', 'Domestic': 'water_supply', 'Timber Processing incl Sawmills': 'other', 'Peat Harvesting/Processing': 'other', 'Milk and dairy industries': 'other', 'Gravel Wash': 'other', 'Carwash': 'other', 'Contaminated land earthworks': 'other', 'Dairying - Sheep': 'irrigation', 'Fertiliser Work': 'other', 'Fish Processing': 'other', 'Fisheries and wildlife habitat/control': 'other', 'Food Processing': 'other', 'Gravel Wash': 'other', 'Gravel extraction': 'other', 'Horticulture Irrigation': 'irrigation', 'Landfill and transfer stations': 'other', 'Manufacturing': 'other', 'River control': 'other', 'Slink Skins': 'other', 'Stockwater': 'stockwater', 'Transport': 'other', 'Truckwash': 'other'}
 
@@ -31,55 +35,38 @@ use_type_dict = param['input']['use_type_dict']
 ### Functions
 
 
-def get_permit_data(remote):
+# def get_permit_data(permits_path):
+#     """
+
+#     """
+#     permits = booklet.open(permits_path)
+
+#     return permits
+
+
+def get_usage_data(usage_path, waps=None, from_date=None, to_date=None):
     """
 
     """
-    obj1 = utils.get_object_s3(**remote)
-    permits = utils.read_json_zstd(obj1)
+    data_list = []
+    with booklet.open(usage_path) as f:
+        if waps is None:
+            waps = f.keys()
 
-    return permits
+        for wap in waps:
+        # for stn_id, data in f.items():
+            data = f.get(wap)
+            if data is not None:
+                data1 = data.rename(columns={wap: 'water_use'})
+                data1['wap'] = wap
+                data_list.append(data1)
 
-
-def get_usage_data(remote, waps, from_date=None, to_date=None, threads=60):
-    """
-
-    """
-    # remote = [{'bucket': bucket, 'connection_config': connection_config}]
-    t1 = Tethys([remote])
-
-    usage_ds = [ds for ds in t1.datasets if (ds['parameter'] == 'water_use') and (ds['product_code'] == 'raw_data') and (ds['frequency_interval'] == '24H') and (ds['utc_offset'] == '12H') and (ds['method'] == 'sensor_recording')]
-
-    stns_all = []
-
-    for ds in usage_ds:
-        stns1 = t1.get_stations(ds['dataset_id'])
-        stns_all.extend([s for s in stns1 if s['ref'] in waps])
-
-    if stns_all:
-        stns_dict = {s['dataset_id']: [] for s in stns_all}
-        _ = [stns_dict[s['dataset_id']].extend([s['station_id']]) for s in stns_all]
-
-        data_list = []
-        for ds, stns in stns_dict.items():
-            data = t1.get_results(ds, stns, from_date=from_date, to_date=to_date, squeeze_dims=True, threads=threads)
-
-            stns_df = pd.DataFrame([{'station_id': stn['station_id'], 'ref': stn['ref']} for stn in stns_all])
-
-            val2 = data[['station_id', 'water_use']].drop('height').to_dataframe().reset_index().drop('geometry', axis=1).dropna()
-            val2 = pd.merge(stns_df, val2, on='station_id').drop('station_id', axis=1).rename(columns={'ref': 'wap'})
-            data_list.append(val2)
-
-        data2 = pd.concat(data_list)
-    else:
-        raise ValueError('No water use data found. Check parameters.')
-
-    data2['time'] = data2['time'] + pd.DateOffset(hours=12)
+    data2 = pd.concat(data_list)
 
     return data2
 
 
-def allo_filter(permits_list, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False):
+def allo_filter(permits_path, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False, use_type_mapping={}):
     """
     Function to filter consents and WAPs in various ways.
 
@@ -108,25 +95,31 @@ def allo_filter(permits_list, from_date=None, to_date=None, permit_filter=None, 
     ### Process the premits dict into the three dataframes
     waps0 = []
     permits0 = []
+    with booklet.open(permits_path) as f:
+        for p in f.values():
+            if p['exercised']:
+                if p['activity']['activity_type'] == 'consumptive take water':
+                    conditions = p['activity']['conditions']
+                    for condition in conditions:
+                        if condition['condition_type'] == 'abstraction limit':
+                            for limit in condition['limits']:
+                                if limit['period'] == 'D':
+                                    limit_value = limit['value'] / 60 / 60 / 24 * 1000
+                    p1 = {'permit_id': p['permit_id'], 'hydro_feature': p['activity']['feature'], 'permit_status': p['status'], 'use_type': p['activity']['primary_purpose'], 'max_rate': limit_value, 'from_date': p['commencement_date']}
 
-    for p in permits_list:
-        if p['exercised']:
-            if p['activity']['activity_type'] == 'consumptive take water':
-                p1 = {'permit_id': p['permit_id'], 'hydro_feature': p['activity']['feature'], 'permit_status': p['status'], 'use_type': p['activity']['primary_purpose'], 'max_rate': p['activity']['condition'][0]['limit'][0]['value'], 'from_date': p['commencement_date']}
+                    if 'effective_end_date' in p:
+                        p1.update({'to_date': p['effective_end_date']})
+                    else:
+                        p1.update({'to_date': p['expiry_date']})
 
-                if 'effective_end_date' in p:
-                    p1.update({'to_date': p['effective_end_date']})
-                else:
-                    p1.update({'to_date': p['expiry_date']})
+                    permits0.extend([p1])
 
-                permits0.extend([p1])
-
-                for s in p['activity']['station']:
-                    w1 = {'permit_id': p['permit_id'], 'wap': s['ref'], 'lat': s['geometry']['coordinates'][1], 'lon': s['geometry']['coordinates'][0]}
-                    if 'properties' in s:
-                        if s['properties']:
-                            w1.update(**s['properties'])
-                    waps0.extend([w1])
+                    for s in p['activity']['stations']:
+                        w1 = {'permit_id': p['permit_id'], 'wap': s['station_id'], 'lat': s['geometry']['coordinates'][1], 'lon': s['geometry']['coordinates'][0]}
+                        if 'properties' in s:
+                            if s['properties']:
+                                w1.update(**s['properties'])
+                        waps0.extend([w1])
 
     waps = pd.DataFrame(waps0)
     permits = pd.DataFrame(permits0)
@@ -157,7 +150,7 @@ def allo_filter(permits_list, from_date=None, to_date=None, permit_filter=None, 
 
     permits1 = permits[permit_cols].copy()
 
-    permits1['use_type'] = permits1.use_type.replace(use_type_dict)
+    permits1['use_type'] = permits1.use_type.replace(use_type_mapping)
 
     if isinstance(permit_filter, dict):
         permit_bool1 = [permits1[k].isin(v) for k, v in permit_filter.items()]
