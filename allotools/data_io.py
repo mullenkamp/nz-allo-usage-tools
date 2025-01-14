@@ -66,7 +66,7 @@ def get_usage_data(usage_path, waps=None, from_date=None, to_date=None):
     return data2
 
 
-def allo_filter(permits_path, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False, use_type_mapping={}):
+def allo_filter(permits_path, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False, use_type_mapping={}, ignore_contraints=True):
     """
     Function to filter consents and WAPs in various ways.
 
@@ -100,11 +100,16 @@ def allo_filter(permits_path, from_date=None, to_date=None, permit_filter=None, 
             if p['exercised']:
                 if p['activity']['activity_type'] == 'consumptive take water':
                     conditions = p['activity']['conditions']
-                    for condition in conditions:
-                        if condition['condition_type'] == 'abstraction':
-                            limit =  condition['limit']
-                            if limit['period'] == 'D':
-                                limit_value = limit['value'] / 60 / 60 / 24 * 1000
+                    if not ignore_contraints:
+                        raise NotImplementedError('contraints have not been implemented')
+
+                    condition = conditions[0]
+
+                    if condition['condition_type'] == 'abstraction':
+                        limit =  condition['limit']
+                        if limit['period'] == 'D':
+                            limit_value = limit['value'] / 60 / 60 / 24 * 1000
+
                     p1 = {'permit_id': p['permit_id'], 'hydro_feature': p['activity']['feature'], 'permit_status': p['status'], 'use_type': p['activity']['primary_purpose'], 'max_rate': limit_value, 'from_date': p['commencement_date']}
 
                     if 'effective_end_date' in p:
