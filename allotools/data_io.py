@@ -66,7 +66,7 @@ def get_usage_data(usage_path, waps=None, from_date=None, to_date=None):
     return data2
 
 
-def allo_filter(permits_path, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False, use_type_mapping={}, ignore_contraints=True):
+def allo_filter(permits_path, from_date=None, to_date=None, permit_filter=None, wap_filter=None, only_consumptive=True, include_hydroelectric=False, use_type_mapping={}, ignore_constraints=True):
     """
     Function to filter consents and WAPs in various ways.
 
@@ -100,7 +100,7 @@ def allo_filter(permits_path, from_date=None, to_date=None, permit_filter=None, 
             if p['exercised']:
                 if p['activity']['activity_type'] == 'consumptive take water':
                     conditions = p['activity']['conditions']
-                    if not ignore_contraints:
+                    if not ignore_constraints:
                         raise NotImplementedError('contraints have not been implemented')
 
                     condition = conditions[0]
