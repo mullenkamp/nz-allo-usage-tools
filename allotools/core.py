@@ -134,7 +134,7 @@ class AlloUsage(object):
     use_type_mapping : dict
         Dict mapping of the detailed use types to more generic use types. This is used during the usage estimation process and can be mapped to most anything. The the fewer the use types the better.
     default_sd_ratio : float
-        The default stream depletion ratio if no GW aquifer data is supplied AT ALL. 
+        The default stream depletion ratio if no GW aquifer data is supplied AT ALL.
 
     Returns
     -------
@@ -173,7 +173,7 @@ class AlloUsage(object):
         use_type_mapping : dict
             Dict mapping of the detailed use types to more generic use types. This is used during the usage estimation process and can be mapped to most anything. The the fewer the use types the better.
         default_sd_ratio : float
-            The default stream depletion ratio if no GW aquifer data is supplied AT ALL. 
+            The default stream depletion ratio if no GW aquifer data is supplied AT ALL.
 
         Returns
         -------
@@ -394,7 +394,7 @@ class AlloUsage(object):
         setattr(self, 'usage_ts', tsdata2)
 
 
-    def _usage_estimation(self, freq, buffer_dis=80000, min_months=36):
+    def _usage_estimation(self, freq, buffer_dis=80000, min_months=36, est_method='ratio'):
         """
 
         """
@@ -460,6 +460,10 @@ class AlloUsage(object):
         allo_use_mis4 = allo_use_mis3.groupby(['permit_id', 'wap', 'date'])['usage_allo'].mean().reset_index()
 
         allo_use_mis5 = pd.merge(allo_use_mis4, allo_use_mis1[['permit_id', 'wap', 'date', 'total_allo', 'sw_allo', 'gw_allo']], on=['permit_id', 'wap', 'date'])
+        if est_method == 'zero':
+            allo_use_mis5['usage_allo'] = 0
+        elif est_method == 'allo':
+            allo_use_mis5['usage_allo'] = 1
 
         allo_use_mis5['total_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['total_allo']).round()
         allo_use_mis5['sw_allo_usage_est'] = (allo_use_mis5['usage_allo'] * allo_use_mis5['sw_allo']).round()
@@ -511,47 +515,47 @@ class AlloUsage(object):
         return combo1
 
 
-    def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=80000, min_months=36):
+    def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=80000, min_months=36, est_method='ratio'):
         """
 
         """
-        usage_est = self.get_ts(['usage_est'], 'D', ['permit_id', 'wap'], usage_allo_ratio=usage_allo_ratio, buffer_dis=buffer_dis, min_months=min_months)['total_usage_est']
+        usage_est = self.get_ts(['usage_est'], 'D', ['permit_id', 'wap'], usage_allo_ratio=usage_allo_ratio, buffer_dis=buffer_dis, min_months=min_months, usage_est_method=est_method)['total_usage_est']
         usage_est.name = 'sd_rate'
 
         ## SD groundwater takes
         sd_list = []
         if 'sep_distance' in self.waps.columns:
             usage_index = usage_est.index.droplevel(2).unique()
-    
+
             waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s']).set_index(['permit_id', 'wap']).copy()
-    
+
             sd = SD()
-    
+
             all_params = set()
-    
+
             _ = [all_params.update(p) for p in sd.all_methods.values()]
-    
+
             for i, v in waps1.iterrows():
                 if i in usage_index:
                     use1 = usage_est.loc[i]
-    
+
                     v2 = self._prep_aquifer_data(v, all_params)
                     # n_days = int(v['n_days'])
                     method = v['method']
-    
+
                     avail = sd.load_aquifer_data(**v2)
-    
+
                     if method in avail:
                         sd_rates1 = sd.calc_sd_extraction(use1, method)
                     else:
                         sd_rates1 = sd.calc_sd_extraction(use1)
-    
+
                     sd_rates1.name = 'sd_rate'
-    
+
                     sd_rates1 = sd_rates1.reset_index()
                     sd_rates1['permit_id'] = i[0]
                     sd_rates1['wap'] = i[1]
-    
+
                     sd_list.append(sd_rates1)
 
         ## SW takes
@@ -569,12 +573,12 @@ class AlloUsage(object):
         setattr(self, 'sd_rates_daily', sd_rates3)
 
 
-    def _agg_sd_rates(self, freq, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+    def _agg_sd_rates(self, freq, usage_allo_ratio=2, buffer_dis=40000, min_months=36, est_method='ratio'):
         """
 
         """
         if not hasattr(self, 'sd_rates_daily'):
-            self._calc_sd_rates(usage_allo_ratio, buffer_dis, min_months)
+            self._calc_sd_rates(usage_allo_ratio, buffer_dis, min_months, est_method=est_method)
         tsdata1 = self.sd_rates_daily.reset_index()
 
         tsdata2 = grp_ts_agg(tsdata1, ['permit_id', 'wap'], 'date', freq, 'sum')
@@ -665,7 +669,7 @@ class AlloUsage(object):
             setattr(self, 'metered_restr_allo_ts', allo4)
 
 
-    def get_ts(self, datasets, freq, groupby, usage_allo_ratio=2, buffer_dis=40000, min_months=36):
+    def get_ts(self, datasets, freq, groupby, usage_allo_ratio=2, buffer_dis=40000, min_months=36, usage_est_method='ratio'):
         """
         Function to create a time series of allocation and usage.
 
@@ -679,6 +683,8 @@ class AlloUsage(object):
             The fields that should grouped by when returned. Can be any variety of fields including crc, take_type, allo_block, 'wap', CatchmentGroupName, etc. Date will always be included as part of the output group, so it doesn't need to be specified in the groupby.
         usage_allo_ratio : int or float
             The cut off ratio of usage/allocation. Any usage above this ratio will be removed from the results (subsequently reducing the metered allocation).
+        usage_est_method: str
+            The usage estimation method. Options are ratio (default), zero, and allo.
 
         Results
         -------
@@ -706,10 +712,10 @@ class AlloUsage(object):
             self._split_usage_ts(freq, usage_allo_ratio)
             all1.append(self.split_usage_ts)
         if 'usage_est' in datasets:
-            usage_est = self._usage_estimation(freq, buffer_dis, min_months)
+            usage_est = self._usage_estimation(freq, buffer_dis, min_months, est_method=usage_est_method)
             all1.append(usage_est)
         if 'sd_rates' in datasets:
-            sd_rates = self._agg_sd_rates(freq, usage_allo_ratio, buffer_dis, min_months)
+            sd_rates = self._agg_sd_rates(freq, usage_allo_ratio, buffer_dis, min_months, est_method=usage_est_method)
             all1.append(sd_rates)
 
         all2 = pd.concat(all1, axis=1)
