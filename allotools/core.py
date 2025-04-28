@@ -515,70 +515,86 @@ class AlloUsage(object):
         return combo1
 
 
-    def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=80000, min_months=36, est_method='ratio'):
+    def _calc_sd_rates(self, usage_allo_ratio=2, buffer_dis=80000, min_months=36, est_method='ratio', est_gw_sd_lags=False):
         """
-
+    
         """
         usage_est = self.get_ts(['usage_est'], 'D', ['permit_id', 'wap'], usage_allo_ratio=usage_allo_ratio, buffer_dis=buffer_dis, min_months=min_months, usage_est_method=est_method)['total_usage_est']
         usage_est.name = 'sd_rate'
-
+    
         ## SD groundwater takes
-        sd_list = []
-        if 'sep_distance' in self.waps.columns:
+        if est_gw_sd_lags:
+            sd_list = []
+            if not 'sep_distance' in self.waps.columns:
+                raise ValueError('est_gw_sd_lags == True, but there are no aquifer parameters in the waps table.')
+    
             usage_index = usage_est.index.droplevel(2).unique()
-
+    
             waps1 = self.waps.dropna(subset=['sep_distance', 'pump_aq_trans', 'pump_aq_s']).set_index(['permit_id', 'wap']).copy()
-
+            aq_waps = waps1.permit_id.unique()
+    
+            gw_permits = self.permits[self.permits.hydro_feature == 'groundwater'].permit_id.unique()
+    
+            missing_gw_permits = gw_permits[~np.isin(gw_permits, aq_waps)]
+            if len(missing_gw_permits) > 0:
+                print(f'{len(missing_gw_permits)} GW permits do not have aquifer parameters and will be ignored.')
+    
             sd = SD()
-
+    
             all_params = set()
-
+    
             _ = [all_params.update(p) for p in sd.all_methods.values()]
-
+    
             for i, v in waps1.iterrows():
                 if i in usage_index:
                     use1 = usage_est.loc[i]
-
+    
                     v2 = self._prep_aquifer_data(v, all_params)
                     # n_days = int(v['n_days'])
                     method = v['method']
-
+    
                     avail = sd.load_aquifer_data(**v2)
-
+    
                     if method in avail:
                         sd_rates1 = sd.calc_sd_extraction(use1, method)
                     else:
                         sd_rates1 = sd.calc_sd_extraction(use1)
-
+    
                     sd_rates1.name = 'sd_rate'
-
+    
                     sd_rates1 = sd_rates1.reset_index()
                     sd_rates1['permit_id'] = i[0]
                     sd_rates1['wap'] = i[1]
-
+    
                     sd_list.append(sd_rates1)
-
-        ## SW takes
-        sw_permits = self.permits[self.permits.hydro_feature == 'surface water'].permit_id.unique()
-        sw_permits_bool = usage_est.index.get_level_values(0).isin(sw_permits)
-
-        sw_usage = usage_est.loc[sw_permits_bool].reset_index()
-
-        sd_list.append(sw_usage)
-
-        sd_rates2 = pd.concat(sd_list)
+    
+            ## SW takes
+            sw_permits = self.permits[self.permits.hydro_feature == 'surface water'].permit_id.unique()
+            sw_permits_bool = usage_est.index.get_level_values(0).isin(sw_permits)
+    
+            sw_usage = usage_est.loc[sw_permits_bool].reset_index()
+    
+            sd_list.append(sw_usage)
+    
+            sd_rates2 = pd.concat(sd_list)
+    
+        else:
+            sd_rates1 = usage_est.reset_index()
+            sd_rates1a = pd.merge(self.waps[['permit_id', 'wap', 'sd_ratio']], sd_rates1, on=['permit_id', 'wap'])
+            sd_rates1a['sd_rate'] = sd_rates1a['sd_rate'] * sd_rates1a['sd_ratio']
+            sd_rates2 = sd_rates1a.drop('sd_ratio', axis=1)
 
         sd_rates3 = sd_rates2.groupby(pk).mean()
-
+    
         setattr(self, 'sd_rates_daily', sd_rates3)
 
 
-    def _agg_sd_rates(self, freq, usage_allo_ratio=2, buffer_dis=40000, min_months=36, est_method='ratio'):
+    def _agg_sd_rates(self, freq, usage_allo_ratio=2, buffer_dis=40000, min_months=36, est_method='ratio', est_gw_sd_lags=False):
         """
 
         """
         if not hasattr(self, 'sd_rates_daily'):
-            self._calc_sd_rates(usage_allo_ratio, buffer_dis, min_months, est_method=est_method)
+            self._calc_sd_rates(usage_allo_ratio, buffer_dis, min_months, est_method=est_method, est_gw_sd_lags=est_gw_sd_lags)
         tsdata1 = self.sd_rates_daily.reset_index()
 
         tsdata2 = grp_ts_agg(tsdata1, ['permit_id', 'wap'], 'date', freq, 'sum')
@@ -669,7 +685,7 @@ class AlloUsage(object):
             setattr(self, 'metered_restr_allo_ts', allo4)
 
 
-    def get_ts(self, datasets, freq, groupby, usage_allo_ratio=2, buffer_dis=40000, min_months=36, usage_est_method='ratio'):
+    def get_ts(self, datasets, freq, groupby, usage_allo_ratio=2, buffer_dis=40000, min_months=36, usage_est_method='ratio', est_gw_sd_lags=False):
         """
         Function to create a time series of allocation and usage.
 
@@ -715,7 +731,7 @@ class AlloUsage(object):
             usage_est = self._usage_estimation(freq, buffer_dis, min_months, est_method=usage_est_method)
             all1.append(usage_est)
         if 'sd_rates' in datasets:
-            sd_rates = self._agg_sd_rates(freq, usage_allo_ratio, buffer_dis, min_months, est_method=usage_est_method)
+            sd_rates = self._agg_sd_rates(freq, usage_allo_ratio, buffer_dis, min_months, est_method=usage_est_method, est_gw_sd_lags=est_gw_sd_lags)
             all1.append(sd_rates)
 
         all2 = pd.concat(all1, axis=1)
