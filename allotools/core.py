@@ -305,10 +305,15 @@ class AlloUsage(object):
 
             waps2 = pd.merge(self.waps, sd_ratios, on=['permit_id', 'wap'], how='left')
         else:
-            ## Alternative until we get data
             waps2 = self.waps.copy()
-            waps2['sd_ratio'] = 1
-            waps2.loc[waps2.permit_id.isin(self.permits.loc[self.permits.hydro_feature == 'groundwater', 'permit_id'].unique()), 'sd_ratio'] = self.default_sd_ratio
+            if 'sd_ratio' not in self.waps.columns:
+                waps2['sd_ratio'] = np.nan
+
+            gw_bool = waps2.permit_id.isin(self.permits.loc[self.permits.hydro_feature == 'groundwater', 'permit_id'].unique())
+            sw_bool = waps2.permit_id.isin(self.permits.loc[self.permits.hydro_feature == 'surface water', 'permit_id'].unique())
+
+            waps2.loc[gw_bool & waps2['sd_ratio'].isnull(), 'sd_ratio'] = self.default_sd_ratio
+            waps2.loc[sw_bool & waps2['sd_ratio'].isnull(), 'sd_ratio'] = 1
 
         setattr(self, 'waps', waps2)
 
